@@ -44,7 +44,8 @@ runs:
       if: ${{ inputs.env_prepare }}
       shell: bash
       run: |
-        source activate e2e_ci
+        . $(conda info -e |awk '{if($1=="base"){printf("%s/etc/profile.d/conda.sh", $NF)}}')
+        conda activate e2e_ci
         source /opt/intel/oneapi/compiler/latest/env/vars.sh
         if [ ${{ inputs.suite }} == *"torchbench"* ]; then
           cd ../ && rm -rf audio && git clone --single-branch -b main https://github.com/pytorch/audio.git
@@ -75,7 +76,8 @@ runs:
       env:
         HUGGING_FACE_HUB_TOKEN: ${{ inputs.hf_token }}
       run: |
-        source activate e2e_ci
+        . $(conda info -e |awk '{if($1=="base"){printf("%s/etc/profile.d/conda.sh", $NF)}}')
+        conda activate e2e_ci
         cp .github/scripts/inductor_xpu_test.sh ../pytorch
         cd ../pytorch
         source /opt/intel/oneapi/compiler/latest/env/vars.sh
