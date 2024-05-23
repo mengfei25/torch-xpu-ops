@@ -1,9 +1,6 @@
 name: E2E Nightly_OnDemand Tests
 
 on:
-  schedule:
-    # GMT+8 21:00 every day
-    - cron: '0 13 * * *'
   workflow_dispatch:
     inputs:
       triton:
@@ -41,7 +38,7 @@ concurrency:
 
 jobs:
   Inductor-XPU-E2E-Nightly-Tests:
-    runs-on: pvc_e2e
+    runs-on: mengfeil_pvc_e2e
     timeout-minutes: 900
     steps:
       - name: Checkout torch-xpu-ops
@@ -50,7 +47,7 @@ jobs:
         run: |
           which conda
           if conda env list | grep -q "^e2e_ci "; then source activate e2e_ci; else conda create -n e2e_ci python=3.8 cmake ninja -y; fi
-          conda install intel::mkl-static intel::mkl-include -y
+          conda install mkl-static mkl-include -c intel -y
           pip install pandas scipy tqdm
       - name: Prepare Stock Pytorch
         run: |
