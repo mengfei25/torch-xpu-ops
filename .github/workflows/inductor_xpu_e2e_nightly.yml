@@ -46,12 +46,14 @@ jobs:
       - name: Prepare Conda ENV
         run: |
           which conda
+          . $(conda info -e |awk '{if($1=="base"){printf("%s/etc/profile.d/conda.sh", $NF)}}')
           if conda env list | grep -q "^e2e_ci "; then conda activate e2e_ci; else conda create -n e2e_ci python=3.8 cmake ninja -y; fi
           conda install mkl-static mkl-include -c intel -y
           pip install pandas scipy tqdm
       - name: Prepare Stock Pytorch
         run: |
           pwd
+          . $(conda info -e |awk '{if($1=="base"){printf("%s/etc/profile.d/conda.sh", $NF)}}')
           cd ../ && rm -rf pytorch
           conda activate e2e_ci
           git clone -b main https://github.com/pytorch/pytorch pytorch
@@ -82,6 +84,7 @@ jobs:
           echo ${GITHUB_ENV}
       - name: Triton Installation
         run: |
+          . $(conda info -e |awk '{if($1=="base"){printf("%s/etc/profile.d/conda.sh", $NF)}}')
           conda activate e2e_ci
           cd ../pytorch
           TRITON_REPO="https://github.com/intel/intel-xpu-backend-for-triton"
@@ -89,6 +92,7 @@ jobs:
           pip install --force-reinstall "git+${TRITON_REPO}@${TRITON_COMMIT_ID}#subdirectory=python"
       - name: Build Pytorch XPU
         run: |
+          . $(conda info -e |awk '{if($1=="base"){printf("%s/etc/profile.d/conda.sh", $NF)}}')
           conda activate e2e_ci
           cd ../pytorch
           pip install -r requirements.txt
