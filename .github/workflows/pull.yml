@@ -58,7 +58,7 @@ jobs:
           . $(conda info -e |awk '{if($1=="base"){printf("%s/etc/profile.d/conda.sh", $NF)}}')
           conda activate xpu_op_${ZE_AFFINITY_MASK}
           cd examples
-          timeout 8000 pytest -v
+          timeout 8000 ${CONDA_PREFIX}/bin/pytest -v
       - name: Run XPU OP UT Finegrain
         if: ${{ hashFiles('test/xpu/') != '' }}
         run: |
