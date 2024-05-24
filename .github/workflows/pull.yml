@@ -34,6 +34,8 @@ jobs:
       - name: Build Pytorch XPU
         run: |
           . $(conda info -e |awk '{if($1=="base"){printf("%s/etc/profile.d/conda.sh", $NF)}}')
+          conda remove --all -y -n xpu_op_${ZE_AFFINITY_MASK}
+          conda create python=3.8 -y -n xpu_op_${ZE_AFFINITY_MASK}
           conda activate xpu_op_${ZE_AFFINITY_MASK}
           conda install cmake ninja -y
           conda install mkl-static mkl-include -y -c intel
