@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   Inductor-XPU-E2E-CI-Tests:
+    if: github.repository_owner == 'intel'
     runs-on: pvc_e2e
     timeout-minutes: 900
     steps:
