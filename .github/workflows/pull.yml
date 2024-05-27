@@ -15,7 +15,7 @@ permissions: read-all
 jobs:
   preci-ut:
     # Don't run on forked repos
-    if: github.repository_owner == 'intel'
+    if: github.repository_owner == 'mengfei25'
     name: preci-ut
     runs-on: linux.idc.xpu
     timeout-minutes: 240
@@ -33,9 +33,11 @@ jobs:
           sed -i "s/checkout --quiet \${TORCH_XPU_OPS_COMMIT}/log -n 1/g" caffe2/CMakeLists.txt
       - name: Build Pytorch XPU
         run: |
+          conda remove --all -y -n xpu_op_${ZE_AFFINITY_MASK}
+          conda create python=3.10 -y -n xpu_op_${ZE_AFFINITY_MASK}
           source activate xpu_op_${ZE_AFFINITY_MASK}
           conda install cmake ninja -y
-          conda install intel::mkl-static intel::mkl-include -y
+          conda install mkl-static mkl-include -y -c intel
           cd ../pytorch
           pip install -r requirements.txt
           export USE_XPU=1
@@ -54,7 +56,8 @@ jobs:
           source /opt/intel/oneapi/compiler/latest/env/vars.sh
           source activate xpu_op_${ZE_AFFINITY_MASK}
           cd examples
-          timeout 8000 pytest -v
+          pip install pytest
+          timeout 8000 ${CONDA_PREFIX}/bin/pytest -v
       - name: Run XPU OP UT Finegrain
         if: ${{ hashFiles('test/xpu/') != '' }}
         run: |
