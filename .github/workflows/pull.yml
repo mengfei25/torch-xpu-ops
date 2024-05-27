@@ -17,7 +17,7 @@ jobs:
     # Don't run on forked repos
     if: github.repository_owner == 'mengfei25'
     name: preci-ut
-    runs-on: linux.idc.xpu
+    runs-on: mengfeil_pvc_e2e
     timeout-minutes: 240
     steps:
       - name: Checkout torch-xpu-ops
