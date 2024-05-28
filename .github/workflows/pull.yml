@@ -39,6 +39,9 @@ jobs:
           conda activate xpu_op_${ZE_AFFINITY_MASK}
           conda install cmake ninja -y
           conda install intel::mkl-static intel::mkl-include -y
+          conda info -e
+          which python
+          python -V
           cd ../pytorch
           pip install -r requirements.txt
           export USE_XPU=1
@@ -58,7 +61,8 @@ jobs:
           source /opt/intel/oneapi/compiler/latest/env/vars.sh
           conda activate xpu_op_${ZE_AFFINITY_MASK}
           cd examples
-          timeout 8000 pytest -v || true
+          pip install pytest
+          timeout 8000 ${CONDA_PREFIX}/bin/pytest -v || true
       - name: Run XPU OP UT Finegrain
         if: ${{ hashFiles('test/xpu/') != '' }}
         run: |
