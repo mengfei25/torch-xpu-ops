@@ -39,7 +39,7 @@ jobs:
           conda activate xpu_op_${ZE_AFFINITY_MASK}
           conda install cmake ninja -y
           conda install mkl-static mkl-include -y -c intel
-          export MAX_JOBS=4
+          # export MAX_JOBS=4
           cd ../pytorch
           pip install -r requirements.txt
           export USE_XPU=1
