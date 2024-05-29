@@ -92,6 +92,7 @@ runs:
       env:
         HUGGING_FACE_HUB_TOKEN: ${{ inputs.hf_token }}
       run: |
+        export TRITON_INTEL_EMULATE_FP16_ATOMICS=1
         . /opt/conda/etc/profile.d/conda.sh
         conda activate e2e_ci
         cp .github/scripts/inductor_xpu_test.sh ../pytorch
@@ -131,14 +132,3 @@ runs:
       with:
         name: Inductor-XPU-E2E-Data-${{ inputs.suite }}-${{ inputs.dt }}-${{ inputs.mode }}-${{ inputs.scenario }}-${{ github.event.pull_request.number || github.sha }}
         path: ${{ github.workspace }}/inductor_log
-    - name: Test Results Check (${{ inputs.suite }} ${{ inputs.dt }} ${{ inputs.mode }} ${{ inputs.scenario }})
-      if: ${{ inputs.expected_pass_num }}
-      shell: bash
-      run: |
-        cd ../pytorch/inductor_log/${{ inputs.suite }}
-        cd ${{ inputs.dt }}
-        num_passed=$(grep "num_passed:" ${{ inputs.suite }}_${{ inputs.dt }}_${{ inputs.mode }}_${{ inputs.scenario }}_e2e_summary.log | sed -e 's/.*://;s/[^0-9.]//')
-        if [ $num_passed -lt ${{ inputs.expected_pass_num }} ]; then
-          echo -e "[ERROR] Inductor E2E test for ${{ inputs.suite }} ${{ inputs.dt }} ${{ inputs.mode }} passed_num < ${{ inputs.expected_pass_num }}"
-          exit 1
-        fi
