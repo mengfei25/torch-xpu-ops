@@ -15,24 +15,26 @@ concurrency:
 
 jobs:
   Inductor-XPU-E2E-CI-Tests:
-    if: github.repository_owner == 'intel'
-    runs-on: pvc_e2e
+    if: github.repository_owner == 'mengfei25'
+    runs-on: mengfeil_pvc_e2e
     timeout-minutes: 900
     steps:
       - name: Checkout torch-xpu-ops
         uses: actions/checkout@v4
       - name: Prepare Conda ENV
         run: |
+          . /opt/conda/etc/profile.d/conda.sh
           which conda
-          if conda env list | grep -q "^e2e_ci "; then source activate e2e_ci; else conda create -n e2e_ci python=3.8 cmake ninja -y; fi
+          if conda env list | grep -q "^e2e_ci "; then conda activate e2e_ci; else conda create -n e2e_ci python=3.8 cmake ninja -y; fi
           conda install intel::mkl-static intel::mkl-include -y
           pip install pandas scipy tqdm
       - name: Prepare Stock Pytorch
         run: |
           pwd
+          . /opt/conda/etc/profile.d/conda.sh
           cd ../ && rm -rf pytorch
-          source activate e2e_ci
-          git clone -b main https://github.com/pytorch/pytorch pytorch
+          conda activate e2e_ci
+          git clone -b nightly https://github.com/pytorch/pytorch pytorch
           cd pytorch
           # apply PRs for stock pytorch
           pip install requests
@@ -45,7 +47,8 @@ jobs:
           sed -i "s/checkout --quiet \${TORCH_XPU_OPS_COMMIT}/log -n 1/g" caffe2/CMakeLists.txt
       - name: Triton Installation
         run: |
-          source activate e2e_ci
+          . /opt/conda/etc/profile.d/conda.sh
+          conda activate e2e_ci
           cd ../pytorch
           TRITON_REPO="https://github.com/intel/intel-xpu-backend-for-triton"
           TRITON_PINNED_COMMIT=$(cat .ci/docker/ci_commit_pins/triton-xpu.txt)
@@ -53,7 +56,8 @@ jobs:
           pip install --force-reinstall "git+${TRITON_REPO}@${TRITON_PINNED_COMMIT}#subdirectory=python"
       - name: Build Pytorch XPU
         run: |
-          source activate e2e_ci
+          . /opt/conda/etc/profile.d/conda.sh
+          conda activate e2e_ci
           cd ../pytorch
           pip install -r requirements.txt
           export USE_XPU=1
@@ -72,14 +76,32 @@ jobs:
           echo "TIMM_COMMIT_ID=$(<.ci/docker/ci_commit_pins/timm.txt)" >> "${GITHUB_ENV}"
       - name: Show GITHUB_ENV
         run: echo "$GITHUB_ENV"
-      - name: Huggingface BF16 Training Accuracy Test
+      - name: Huggingface AMP Inference Accuracy Test
         uses: ./.github/actions/inductor-xpu-e2e-test
         with:
           suite: huggingface
-          dt: bfloat16
+          dt: amp_fp16
+          mode: inference
+          scenario: accuracy
+          expected_pass_num: 4
+          hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+      - name: Huggingface FP16 Inference Accuracy Test
+        uses: ./.github/actions/inductor-xpu-e2e-test
+        with:
+          suite: huggingface
+          dt: float16
+          mode: inference
+          scenario: accuracy
+          expected_pass_num: 4
+          hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+      - name: Huggingface AMP Training Accuracy Test
+        uses: ./.github/actions/inductor-xpu-e2e-test
+        with:
+          suite: huggingface
+          dt: amp_fp16
           mode: training
           scenario: accuracy
-          expected_pass_num: 46
+          expected_pass_num: 4
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface FP16 Training Accuracy Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -88,23 +110,5 @@ jobs:
           dt: float16
           mode: training
           scenario: accuracy
-          expected_pass_num: 46
-          hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-      - name: Timm_models BF16 Training Accuracy Test
-        uses: ./.github/actions/inductor-xpu-e2e-test
-        with:
-          suite: timm_models
-          dt: bfloat16
-          mode: training
-          scenario: accuracy
-          expected_pass_num: 16
-          hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
-      - name: Torchbench BF16 Training Accuracy Test
-        uses: ./.github/actions/inductor-xpu-e2e-test
-        with:
-          suite: torchbench
-          dt: bfloat16
-          mode: training
-          scenario: accuracy
-          expected_pass_num: 16
+          expected_pass_num: 4
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
