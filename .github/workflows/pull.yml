@@ -15,9 +15,9 @@ permissions: read-all
 jobs:
   preci-ut:
     # Don't run on forked repos
-    if: github.repository_owner == 'intel'
+    if: github.repository_owner == 'mengfei25'
     name: preci-ut
-    runs-on: mengfeil_pvc_e2e
+    runs-on: mengfeil_ci_e2e
     timeout-minutes: 240
     steps:
       - name: Checkout torch-xpu-ops
