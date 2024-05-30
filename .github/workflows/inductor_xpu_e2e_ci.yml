@@ -28,9 +28,8 @@ jobs:
         run: |
           . /opt/conda/etc/profile.d/conda.sh
           which conda
-          if ! conda env list | grep -q "^e2e_ci "; then
-            conda create -n e2e_ci python=3.8 cmake ninja -y
-          fi
+          conda remove --all -y -n e2e_ci
+          conda create -n e2e_ci python=3.8 cmake ninja -y
           conda activate e2e_ci
           conda install intel::mkl-static intel::mkl-include -y
           pip install pandas scipy tqdm
