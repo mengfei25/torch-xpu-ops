@@ -52,7 +52,9 @@ jobs:
           for i in {1..3}; do
             pip uninstall -y torchvision
           done
+          pip install -r .ci/docker/requirements-ci.txt
           git clone https://github.com/pytorch/vision && cd vision && python setup.py install && cd ..
+          conda list |grep torch
       - name: Run XPU OP Examples
         if: ${{ hashFiles('examples/') != '' }}
         run: |
@@ -62,7 +64,7 @@ jobs:
           conda activate xpu_op_${ZE_AFFINITY_MASK}
           cd examples
           pip install pytest
-          timeout 8000 ${CONDA_PREFIX}/bin/pytest -v || true
+          timeout 8000 ${CONDA_PREFIX}/bin/pytest -v
       - name: Run XPU OP UT Finegrain
         if: ${{ hashFiles('test/xpu/') != '' }}
         run: |
@@ -81,12 +83,12 @@ jobs:
           export PYTORCH_ENABLE_XPU_FALLBACK=1
           export PYTORCH_TEST_WITH_SLOW=1
           cd ../pytorch/third_party/torch-xpu-ops/test/xpu
-          timeout 10000 python run_test_with_skip.py || true
+          timeout 10000 python run_test_with_skip.py
           # Cases run with a on-demand white list, since some suites are too
           # slow to go through all operators on CPU. So add cases on-demand
           # when XPU implementatoin is done.
           # test_foreach, test_decomp
-          timeout 10000 python run_test_with_only.py || true
+          timeout 10000 python run_test_with_only.py
       - name: Run Torch XPU UT
         run: |
           source /opt/intel/oneapi/compiler/latest/env/vars.sh
