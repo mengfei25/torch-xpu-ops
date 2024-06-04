@@ -15,7 +15,7 @@ permissions: read-all
 jobs:
   preci-ut:
     # Don't run on forked repos
-    if: github.repository_owner == 'mengfei25'
+    if: github.repository_owner == '123'
     name: preci-ut
     runs-on: mengfeil_ci_e2e
     timeout-minutes: 240
