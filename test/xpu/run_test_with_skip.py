@@ -943,7 +943,7 @@ skip_list = (
     "jiterator", # Jiterator is only supported by CUDA
     "cuda", # Skip cuda hard-coded case
     "test_fmod_remainder_by_zero_integral_xpu_int64", # zero division is an undefined behavior: different handles on different backends
-    "test_div_rounding_numpy_xpu_float16", # CPU fail
+    "test_div_rounding_numpy_xpu_float16", # Calculation error. XPU implementation uses opmath type.
     "test_cpu_tensor_pow_cuda_scalar_tensor_xpu", # CUDA hard-coded
     "test_type_promotion_bitwise_and_xpu", # align CUDA dtype
     "test_type_promotion_bitwise_or_xpu", # align CUDA dtype
@@ -961,6 +961,8 @@ skip_list = (
     "test_logaddexp_xpu_complex64", # CPU fail
     "test_type_promotion_clamp_max_xpu", # align CUDA dtype, CUDA XFAIL
     "test_type_promotion_clamp_min_xpu", # align CUDA dtype, CUDA XFAIL
+    "test_div_rounding_nonfinite_xpu_bfloat16", # CPU result is not golden reference
+    "test_div_rounding_nonfinite_xpu_float16", # CPU result is not golden reference
 )
 res += launch_test("test_binary_ufuncs_xpu.py", skip_list)
 
@@ -1607,6 +1609,56 @@ skip_list = (
 
 )
 res += launch_test("test_reductions_xpu.py", skip_list=skip_list)
+skip_list=(
+    # AssertionError: Jiterator is only supported on CUDA and ROCm GPUs, none are available.
+    "_jiterator_",
+
+    # CPU Fallback fails: Tensor-likes are not close!
+    "test_reference_numerics_extremal__refs_acos_xpu_complex128",
+    "test_reference_numerics_extremal__refs_asin_xpu_complex128",
+    "test_reference_numerics_extremal__refs_asin_xpu_complex64",
+    "test_reference_numerics_extremal__refs_atan_xpu_complex128",
+    "test_reference_numerics_extremal__refs_atan_xpu_complex64",
+    "test_reference_numerics_extremal__refs_exp2_xpu_complex128",
+    "test_reference_numerics_extremal__refs_exp2_xpu_complex64",
+    "test_reference_numerics_extremal__refs_nn_functional_tanhshrink_xpu_complex64",
+    "test_reference_numerics_extremal_acos_xpu_complex128",
+    "test_reference_numerics_extremal_asin_xpu_complex128",
+    "test_reference_numerics_extremal_asin_xpu_complex64",
+    "test_reference_numerics_extremal_atan_xpu_complex128",
+    "test_reference_numerics_extremal_atan_xpu_complex64",
+    "test_reference_numerics_extremal_exp2_xpu_complex128",
+    "test_reference_numerics_extremal_exp2_xpu_complex64",
+    "test_reference_numerics_extremal_nn_functional_tanhshrink_xpu_complex64",
+    "test_reference_numerics_large__refs_atan_xpu_complex128",
+    "test_reference_numerics_large__refs_atan_xpu_complex64",
+    "test_reference_numerics_large_atan_xpu_complex128",
+    "test_reference_numerics_large_atan_xpu_complex64",
+    "test_reference_numerics_normal__refs_nn_functional_tanhshrink_xpu_complex64",
+    "test_reference_numerics_normal_nn_functional_tanhshrink_xpu_complex64",
+    "test_reference_numerics_small__refs_atan_xpu_complex128",
+    "test_reference_numerics_small__refs_atan_xpu_complex64",
+    "test_reference_numerics_small_atan_xpu_complex128",
+    "test_reference_numerics_small_atan_xpu_complex64",
+
+    # For extreme value processing, Numpy and XPU results are inconsistent
+    "test_reference_numerics_extremal__refs_log_xpu_complex64",
+    "test_reference_numerics_extremal_log_xpu_complex64",
+    "test_reference_numerics_extremal__refs_tanh_xpu_complex128",
+    "test_reference_numerics_extremal__refs_tanh_xpu_complex64",
+    "test_reference_numerics_extremal_tanh_xpu_complex128",
+    "test_reference_numerics_extremal_tanh_xpu_complex64",
+)
+res += launch_test("test_unary_ufuncs_xpu.py", skip_list)
+
+# test_content_store
+skip_list = (
+    # Storage compatibility in XPU tensor.
+    # RuntimeError: don't know how to determine data location of torch.storage.UntypedStorage
+    "test_basic_xpu",
+    "test_load_tensor_xpu",
+)
+res += launch_test("test_content_store_xpu.py")
 
 exit_code = os.WEXITSTATUS(res)
 sys.exit(exit_code)
