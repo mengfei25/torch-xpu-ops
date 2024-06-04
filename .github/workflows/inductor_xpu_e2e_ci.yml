@@ -28,7 +28,6 @@ jobs:
         run: |
           set -xe
           . /opt/conda/etc/profile.d/conda.sh
-          which conda
           conda remove --all -y -n e2e_ci
           conda create -n e2e_ci python=3.8 cmake ninja -y
           conda activate e2e_ci
