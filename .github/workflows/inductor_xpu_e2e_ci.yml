@@ -16,6 +16,7 @@ concurrency:
 jobs:
   Inductor-XPU-E2E-CI-Tests:
     runs-on: pvc_e2e
+    if: github.repository_owner == '123'
     timeout-minutes: 900
     steps:
       - name: Checkout torch-xpu-ops
