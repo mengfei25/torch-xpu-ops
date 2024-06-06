@@ -83,7 +83,6 @@ jobs:
           dt: float32
           mode: inference
           scenario: performance
-          expected_pass_num: 1
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface BF16 Inference performance Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -92,7 +91,6 @@ jobs:
           dt: bfloat16
           mode: inference
           scenario: performance
-          expected_pass_num: 2
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface FP16 Inference performance Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -101,7 +99,6 @@ jobs:
           dt: float16
           mode: inference
           scenario: performance
-          expected_pass_num: 3
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface AMP BF16 Inference performance Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -110,7 +107,6 @@ jobs:
           dt: amp_bf16
           mode: inference
           scenario: performance
-          expected_pass_num: 4
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface AMP FP16 Inference performance Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -119,7 +115,6 @@ jobs:
           dt: amp_fp16
           mode: inference
           scenario: performance
-          expected_pass_num: 5
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
 
       - name: Huggingface FP32 training performance Test
@@ -129,7 +124,6 @@ jobs:
           dt: float32
           mode: training
           scenario: performance
-          expected_pass_num: 1
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface BF16 training performance Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -138,7 +132,6 @@ jobs:
           dt: bfloat16
           mode: training
           scenario: performance
-          expected_pass_num: 2
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface FP16 training performance Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -147,7 +140,6 @@ jobs:
           dt: float16
           mode: training
           scenario: performance
-          expected_pass_num: 3
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface AMP BF16 training performance Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -156,7 +148,6 @@ jobs:
           dt: amp_bf16
           mode: training
           scenario: performance
-          expected_pass_num: 4
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
       - name: Huggingface AMP FP16 training performance Test
         uses: ./.github/actions/inductor-xpu-e2e-test
@@ -165,7 +156,6 @@ jobs:
           dt: amp_fp16
           mode: training
           scenario: performance
-          expected_pass_num: 5
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
 
       - name: Huggingface FP32 Inference Accuracy Test
