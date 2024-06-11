@@ -1,5 +1,5 @@
 
-import re
+import os
 import requests
 import argparse
 import urllib
@@ -35,14 +35,14 @@ def check_reverted_reopen(pr_info):
     return reverted
 
 
-# headers = {'Authorization': 'Bearer ' + args.token} if args.token != None else args.token
+headers = {'Authorization': 'Bearer ' + os.environ["L_GITHUB_TOKEN"]}
 pr_list = args.pr_list + args.extra_pr_list
 pr_list = set(pr_list)
 pr_list = sorted(pr_list)
 for pr_link in pr_list:
     repo_info = pr_link.split("/")
     pr_info = requests.get('https://api.' + repo_info[-5] + '/repos/' + repo_info[-4] + '/' + \
-                        repo_info[-3] + '/pulls/' + repo_info[-1], timeout=60).json()
+                        repo_info[-3] + '/pulls/' + repo_info[-1], timeout=60, headers=headers).json()
 
     if pr_info["state"].lower() == "open":
         # for reverted PR
