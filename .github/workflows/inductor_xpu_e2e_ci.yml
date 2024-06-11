@@ -35,6 +35,7 @@ jobs:
           conda activate e2e_ci
           git clone -b nightly https://github.com/pytorch/pytorch pytorch
           cd pytorch
+          git checkout 9f88f70e2e40e80c4a5e5a0c07b92666f7299014
           # apply PRs for stock pytorch
           pip install requests
           # https://github.com/mengfei25/pytorch/pull/18 internal use only for subset model list
