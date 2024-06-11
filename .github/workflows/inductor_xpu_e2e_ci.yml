@@ -124,3 +124,4 @@ jobs:
           mode: training
           scenario: performance
           hf_token: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
+
