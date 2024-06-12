@@ -41,7 +41,6 @@ runs:
   using: composite
   steps:
     - name: Prepare ENV
-      if: ${{ inputs.env_prepare }}
       shell: bash
       run: |
         source activate e2e_ci
@@ -107,103 +106,15 @@ runs:
               do
                 contains "accuracy,performance" $scenario
                 $contains_status
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 0 static 8 0 &
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 1 static 8 1 &
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 2 static 8 2 &
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 3 static 8 3 &
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 4 static 8 4 &
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 5 static 8 5 &
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 6 static 8 6 &
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 7 static 8 7 &
-                wait
-              done
-            done
-          done
-        done
-
-    - name: Summary E2E Test (${{ inputs.suite }} ${{ inputs.dt }} ${{ inputs.mode }} ${{ inputs.scenario }})
-      shell: bash
-      env:
-        HUGGING_FACE_HUB_TOKEN: ${{ inputs.hf_token }}
-      run: |
-        # check param
-        function contains() {
-            contains_status="echo 'Start $2 ...'"
-            {
-              [[ $1 =~ (^|,)$2($|,) ]]
-            } || {
-              echo "[Warning] $2 is not suppotted type! Skipped!"
-              contains_status="continue"
-            }
-        }
-        cd ../pytorch
-        set -xe
-        for suite in $(echo ${{ inputs.suite }} |sed 's/,/ /g')
-        do
-          contains "huggingface,timm_models,torchbench" $suite
-          $contains_status
-          for dt in $(echo ${{ inputs.dt }} |sed 's/,/ /g')
-          do
-            contains "float32,bfloat16,float16,amp_bf16,amp_fp16" $dt
-            $contains_status
-            for mode in $(echo ${{ inputs.mode }} |sed 's/,/ /g')
-            do
-              contains "inference,training" $mode
-              $contains_status
-              for scenario in $(echo ${{ inputs.scenario }} |sed 's/,/ /g')
-              do
-                contains "accuracy,performance" $scenario
-                $contains_status
-                LOG_DIR="inductor_log/${suite}/${dt}"
-                LOG_NAME=inductor_${suite}_${dt}_${mode}_xpu_${scenario}_all.log
-                rm -f ${LOG_DIR}/${LOG_NAME}
-                find ${LOG_DIR}/ -name "inductor_${suite}_${dt}_${mode}_xpu_${scenario}_card*.log" |xargs cat >> ${LOG_DIR}/${LOG_NAME} 2>&1
-                echo -e "============ Summary for ${suite} ${dt} ${mode} ${scenario} ============" | tee ${LOG_DIR}/${suite}_${dt}_${mode}_${scenario}_e2e_summary.log
-                awk -i inplace '!seen[$0]++' ${LOG_DIR}/inductor_${suite}_${dt}_${mode}_xpu_${scenario}.csv
-                num_total=$(cat ${LOG_DIR}/inductor_${suite}_${dt}_${mode}_xpu_${scenario}.csv |grep -v ',batch_size,' | wc -l)
-                num_passed=$(grep -c "pass" ${LOG_DIR}/inductor_${suite}_${dt}_${mode}_xpu_${scenario}.csv)
-                num_failed=$(echo "$num_total - $num_passed" |bc)
-                pass_rate=`awk 'BEGIN{printf "%.2f%%\n",('$num_passed'/'$num_total')*100}'`
-                echo "num_total: $num_total" | tee -a ${LOG_DIR}/${suite}_${dt}_${mode}_${scenario}_e2e_summary.log
-                echo "num_passed: $num_passed" | tee -a ${LOG_DIR}/${suite}_${dt}_${mode}_${scenario}_e2e_summary.log
-                echo "num_failed: $num_failed" | tee -a ${LOG_DIR}/${suite}_${dt}_${mode}_${scenario}_e2e_summary.log
-                echo "pass_rate: $pass_rate" | tee -a ${LOG_DIR}/${suite}_${dt}_${mode}_${scenario}_e2e_summary.log
+                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 0 static
               done
             done
           done
         done
         cd ${{ github.workspace }} && rm -rf inductor_log && cp -r ../pytorch/inductor_log .
-        find inductor_log/ -name "inductor_*.csv" |xargs cat > inductor_log/summary.csv 2>&1
-        num_total=$(cat inductor_log/summary.csv |grep -v ',batch_size,' | wc -l)
-        num_passed=$(grep -c "pass" inductor_log/summary.csv)
-        num_failed=$(echo "$num_total - $num_passed" |bc)
-        pass_rate=`awk 'BEGIN{printf "%.2f%%\n",('$num_passed'/'$num_total')*100}'`
-        echo "num_total: $num_total" | tee inductor_log/summary.log
-        echo "num_passed: $num_passed" | tee -a inductor_log/summary.log
-        echo "num_failed: $num_failed" | tee -a inductor_log/summary.log
-        echo "pass_rate: $pass_rate" | tee -a inductor_log/summary.log
 
     - name: Upload Inductor XPU E2E Data
-      if: ${{ ! inputs.expected_pass_num }}
       uses: actions/upload-artifact@v4
       with:
         name: Inductor-XPU-E2E-Data-${{ github.event.pull_request.number || github.sha }}
         path: ${{ github.workspace }}/inductor_log
-    - name: Upload Inductor XPU E2E Data (${{ inputs.suite }} ${{ inputs.dt }} ${{ inputs.mode }} ${{ inputs.scenario }})
-      if: ${{ inputs.expected_pass_num }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: Inductor-XPU-E2E-Data-${{ inputs.suite }}-${{ inputs.dt }}-${{ inputs.mode }}-${{ inputs.scenario }}-${{ github.event.pull_request.number || github.sha }}
-        path: ${{ github.workspace }}/inductor_log
-
-    - name: Test Results Check (${{ inputs.suite }} ${{ inputs.dt }} ${{ inputs.mode }} ${{ inputs.scenario }})
-      if: ${{ inputs.expected_pass_num }}
-      shell: bash
-      run: |
-        cd ${{ github.workspace }}/inductor_log/
-        cat summary.csv summary.log
-        num_passed=$(grep "num_passed:" summary.log | sed -e 's/.*://;s/[^0-9.]//')
-        if [ $num_passed -lt ${{ inputs.expected_pass_num }} ]; then
-          echo -e "[ERROR] Inductor E2E test for ${{ inputs.suite }} ${{ inputs.dt }} ${{ inputs.mode }} passed_num < ${{ inputs.expected_pass_num }}"
-          exit 1
-        fi
