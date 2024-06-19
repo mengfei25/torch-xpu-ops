@@ -38,7 +38,7 @@ concurrency:
 
 jobs:
   Inductor-XPU-E2E-Nightly-Tests:
-    runs-on: pvc_e2e
+    runs-on: DUT1024PVC
     timeout-minutes: 900
     steps:
       - name: Checkout torch-xpu-ops
