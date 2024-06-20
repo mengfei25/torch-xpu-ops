@@ -45,6 +45,8 @@ jobs:
         shell: bash
         run: |
           echo "DKMS_VERSION=abc" >> "${GITHUB_OUTPUT}"
+    outputs:
+      DKMS_VERSION: ${{ steps.Test.outputs.DKMS_VERSION }}
 
   Tests-Failure-And-Report:
     if: always()
