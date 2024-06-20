@@ -41,12 +41,10 @@ jobs:
     runs-on: DUT1024PVC
     timeout-minutes: 900
     steps:
-      - name: Checkout torch-xpu-ops
-        uses: actions/checkout@v4
       - name: Test
         shell: bash
         run: |
-          echo "DKMS_VERSION=$(dkms status 2>&1 |grep 'intel-i915-dkms' |sed 's/.*\///;s/,.*//')" >> "${GITHUB_OUTPUT}"
+          echo "DKMS_VERSION=abc" >> "${GITHUB_OUTPUT}"
     outputs:
       DKMS_VERSION: ${{ steps.identify.outputs.DKMS_VERSION }}
 
