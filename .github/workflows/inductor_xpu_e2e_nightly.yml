@@ -46,4 +46,18 @@ jobs:
       - name: Test
         shell: bash
         run: |
-          printenv
+          echo "DKMS_VERSION=$(dkms status 2>&1 |grep 'intel-i915-dkms' |sed 's/.*\///;s/,.*//')" >> "${GITHUB_ENV}"
+
+  Tests-Failure-And-Report:
+    if: always()
+    runs-on: DUT1024PVC
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    needs: Inductor-XPU-E2E-Nightly-Tests
+    steps:
+      - name: Report github issue for XPU OPS nightly
+        run: |
+          set -xe
+          echo "${DKMS_VERSION}, ${{ env.DKMS_VERSION }}"
