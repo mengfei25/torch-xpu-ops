@@ -46,7 +46,9 @@ jobs:
       - name: Test
         shell: bash
         run: |
-          echo "DKMS_VERSION=$(dkms status 2>&1 |grep 'intel-i915-dkms' |sed 's/.*\///;s/,.*//')" >> "${GITHUB_ENV}"
+          echo "DKMS_VERSION=$(dkms status 2>&1 |grep 'intel-i915-dkms' |sed 's/.*\///;s/,.*//')" >> "${GITHUB_OUTPUT}"
+    outputs:
+      DKMS_VERSION: ${{ steps.identify.outputs.DKMS_VERSION }}
 
   Tests-Failure-And-Report:
     if: always()
@@ -60,4 +62,4 @@ jobs:
       - name: Report github issue for XPU OPS nightly
         run: |
           set -xe
-          echo "${DKMS_VERSION}, ${{ env.DKMS_VERSION }}"
+          echo "${{ needs.Inductor-XPU-E2E-Nightly-Tests.outputs.DKMS_VERSION }}"
