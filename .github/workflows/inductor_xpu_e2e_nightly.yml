@@ -41,7 +41,7 @@ jobs:
     runs-on: DUT1024PVC
     timeout-minutes: 900
     steps:
-      - name: Test
+      - id: Test
         shell: bash
         run: |
           echo "DKMS_VERSION=abc" >> "${GITHUB_OUTPUT}"
