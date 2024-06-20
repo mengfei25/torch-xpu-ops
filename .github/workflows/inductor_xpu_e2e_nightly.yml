@@ -41,12 +41,13 @@ jobs:
     runs-on: DUT1024PVC
     timeout-minutes: 900
     steps:
-      - id: Test
+      - name: Test
+        id: abc
         shell: bash
         run: |
           echo "DKMS_VERSION=abc" >> "${GITHUB_OUTPUT}"
     outputs:
-      DKMS_VERSION: ${{ steps.Test.outputs.DKMS_VERSION }}
+      DKMS_VERSION: ${{ steps.abc.outputs.DKMS_VERSION }}
 
   Tests-Failure-And-Report:
     if: always()
