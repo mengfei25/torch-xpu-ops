@@ -51,10 +51,10 @@ concurrency:
 
 jobs:
   Inductor-XPU-E2E-Nightly-Tests:
-    runs-on: pvc_e2e
+    runs-on: DUT1024PVC
     # Don't run on forked repos
     if: github.repository_owner == 'intel'
-    timeout-minutes: 900
+    timeout-minutes: 9000
     outputs:
       TORCH_BRANCH_ID: ${{ steps.pinned.outputs.TORCH_BRANCH_ID }}
       TORCH_COMMIT_ID: ${{ steps.pinned.outputs.TORCH_COMMIT_ID }}
@@ -87,6 +87,7 @@ jobs:
           source activate e2e_ci
           git clone -b main https://github.com/pytorch/pytorch pytorch
           cd pytorch
+          git checkout 2f21c45513b13f238a18afaab2f98456399d76a3
           # apply PRs for stock pytorch
           pip install requests
           python ../torch-xpu-ops/.github/scripts/apply_torch_pr.py
@@ -113,7 +114,7 @@ jobs:
           echo "TRANSFORMERS_VERSION=$(<.ci/docker/ci_commit_pins/huggingface.txt)" |tee -a "${GITHUB_OUTPUT}" >> "${GITHUB_ENV}"
           echo "TIMM_COMMIT_ID=$(<.ci/docker/ci_commit_pins/timm.txt)" |tee -a "${GITHUB_OUTPUT}" >> "${GITHUB_ENV}"
           echo "MODEL_ONLY_NAME=${{ inputs.model }}" |tee -a "${GITHUB_OUTPUT}" >> "${GITHUB_ENV}"
-          source /opt/intel/oneapi/compiler/latest/env/vars.sh
+          source /home/gta/mengfeil/0.5.2/compiler/2024.1/env/vars.sh
           echo "DRIVER_VERSION=$(dkms status 2>&1 |grep 'intel-i915-dkms' |sed 's/.*\///;s/,.*//')" |tee -a "${GITHUB_OUTPUT}" >> "${GITHUB_ENV}"
           echo "BUNDLE_VERSION=$(dpcpp --version 2>&1 |grep 'DPC++/C++' |sed 's/.*(//;s/).*//')" |tee -a "${GITHUB_OUTPUT}" >> "${GITHUB_ENV}"
           . /etc/os-release
@@ -133,7 +134,7 @@ jobs:
           cd ../pytorch
           pip install -r requirements.txt
           export USE_XPU=1
-          source /opt/intel/oneapi/compiler/latest/env/vars.sh
+          source /home/gta/mengfeil/0.5.2/compiler/2024.1/env/vars.sh
           export CMAKE_PREFIX_PATH=${CONDA_PREFIX:-"$(dirname $(which conda))/../"}
           python setup.py bdist_wheel
           pip install --force-reinstall dist/*.whl
@@ -246,7 +247,7 @@ jobs:
 
   Tests-Failure-And-Report:
     if: always()
-    runs-on: pvc_e2e
+    runs-on: DUT1024PVC
     permissions:
       issues: write
     env:
