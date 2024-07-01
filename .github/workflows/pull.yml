@@ -43,7 +43,7 @@ jobs:
           conda remove --all -y -n xpu_op_${ZE_AFFINITY_MASK} || \
                 rm -rf $(dirname ${CONDA_EXE})/../envs/xpu_op_${ZE_AFFINITY_MASK}
           conda create -n xpu_op_${ZE_AFFINITY_MASK} python=3.10 cmake ninja -y
-          source activate xpu_op_${ZE_AFFINITY_MASK}
+          conda activate xpu_op_${ZE_AFFINITY_MASK}
           conda install -c intel mkl-static mkl-include -y
           cd ../pytorch
           pip install -r requirements.txt
@@ -59,7 +59,7 @@ jobs:
         run: |
           xpu-smi discovery
           source /home/gta/mengfeil/0.5.2/compiler/latest/env/vars.sh
-          source activate xpu_op_${ZE_AFFINITY_MASK}
+          conda activate xpu_op_${ZE_AFFINITY_MASK}
           cd examples
           pip install pytest
           timeout 8000 pytest -v
@@ -67,7 +67,7 @@ jobs:
         if: ${{ hashFiles('test/xpu/') != '' }}
         run: |
           source /home/gta/mengfeil/0.5.2/compiler/latest/env/vars.sh
-          source activate xpu_op_${ZE_AFFINITY_MASK}
+          conda activate xpu_op_${ZE_AFFINITY_MASK}
           export PYTORCH_TEST_WITH_SLOW=1
           cd ../pytorch/third_party/torch-xpu-ops/test/xpu/extended/
           timeout 10000 python run_test_with_skip.py
@@ -75,7 +75,7 @@ jobs:
         if: ${{ hashFiles('test/xpu/') != '' }}
         run: |
           source /home/gta/mengfeil/0.5.2/compiler/latest/env/vars.sh
-          source activate xpu_op_${ZE_AFFINITY_MASK}
+          conda activate xpu_op_${ZE_AFFINITY_MASK}
           export PYTORCH_ENABLE_XPU_FALLBACK=1
           export PYTORCH_TEST_WITH_SLOW=1
           cd ../pytorch/third_party/torch-xpu-ops/test/xpu
@@ -88,7 +88,7 @@ jobs:
       - name: Run Torch XPU UT
         run: |
           source /home/gta/mengfeil/0.5.2/compiler/latest/env/vars.sh
-          source activate xpu_op_${ZE_AFFINITY_MASK}
+          conda activate xpu_op_${ZE_AFFINITY_MASK}
           cd ../pytorch
           TEST_REPORTS_DIR=$(pwd)/test/test-reports
           rm -rf "$TEST_REPORTS_DIR" && mkdir -p "$TEST_REPORTS_DIR"
