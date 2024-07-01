@@ -92,7 +92,6 @@ jobs:
           git checkout 2f21c45513b13f238a18afaab2f98456399d76a3
           # apply PRs for stock pytorch
           pip install requests
-          export PYTHONPATH=${PYTHONPATH}:/home/gta/mengfeil/.token
           python ../torch-xpu-ops/.github/scripts/apply_torch_pr.py
           git status && git show -s
           git submodule sync && git submodule update --init --recursive
