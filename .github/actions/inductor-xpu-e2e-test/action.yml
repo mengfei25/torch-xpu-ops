@@ -40,6 +40,7 @@ runs:
       if: ${{ inputs.env_prepare }}
       shell: bash
       run: |
+        . /opt/conda/etc/profile.d/conda.sh
         conda activate e2e_ci
         source /home/gta/mengfeil/0.5.2/compiler/latest/env/vars.sh
         if [[ ${{ inputs.suite }} == *"torchbench"* ]]; then
@@ -77,6 +78,7 @@ runs:
       env:
         HUGGING_FACE_HUB_TOKEN: ${{ inputs.hf_token }}
       run: |
+        . /opt/conda/etc/profile.d/conda.sh
         conda activate e2e_ci
         cp .github/scripts/inductor_xpu_test.sh ../pytorch
         cd ../pytorch
@@ -166,6 +168,7 @@ runs:
             }
         }
         #Accuracy summary 
+        . /opt/conda/etc/profile.d/conda.sh
         conda activate e2e_ci
         cd ${{ github.workspace }}
         cp .github/scripts/inductor_accuracy_summary.py ../pytorch
@@ -198,6 +201,7 @@ runs:
             }
         }
 
+        . /opt/conda/etc/profile.d/conda.sh
         conda activate e2e_ci
         cp .github/scripts/inductor_perf_summary.py ../pytorch
         cd ../pytorch
