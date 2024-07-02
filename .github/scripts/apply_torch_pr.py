@@ -1,5 +1,5 @@
 
-import os
+import re
 import requests
 import argparse
 import urllib
@@ -38,7 +38,8 @@ def check_reverted_reopen(pr_info):
         reverted = False
     return reverted
 
-headers = {'Authorization': 'Bearer ' + os.environ["L_GITHUB_TOKEN"]}
+from my_token import my_tk
+headers = {'Authorization': 'Bearer ' + my_tk}
 pr_list = args.pr_list + args.extra_pr_list
 pr_list = set(pr_list)
 pr_list = sorted(pr_list)
