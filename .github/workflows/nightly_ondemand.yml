@@ -75,10 +75,10 @@ jobs:
       pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}
       python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
       triton: ${{ github.event_name == 'schedule' && '' || inputs.triton }}
-      runner: arc24
+      runner: 1024
 
   Linux-Nightly-Ondemand-E2E-Tests:
-    runs-on: arc24
+    runs-on: 1024
     timeout-minutes: 360000
     env:
       pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}

@@ -1,2 +1,2 @@
 #!/bin/bash
-source /home/mengfeil/intel/oneapi/setvars.sh
+source /home/gta/intel/oneapi/setvars.sh
