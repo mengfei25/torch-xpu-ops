@@ -1,3 +1,6 @@
 #!/bin/bash
-source /opt/intel/oneapi/pytorch-gpu-dev-0.5/oneapi-vars.sh
-source /opt/intel/oneapi/pti/latest/env/vars.sh
+export ONEAPI_ROOT="${HOME}/intel/oneapi/"
+source ${ONEAPI_ROOT}/compiler/latest/env/vars.sh
+source ${ONEAPI_ROOT}/mkl/latest/env/vars.sh
+source ${ONEAPI_ROOT}/umf/latest/env/vars.sh
+source ${ONEAPI_ROOT}/pti/latest/env/vars.sh
