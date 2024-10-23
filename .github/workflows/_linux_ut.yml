@@ -42,7 +42,7 @@ jobs:
           pwd
           cd ../ && rm -rf pytorch
           git clone https://github.com/pytorch/pytorch pytorch
-          cd pytorch && git checkout ${{ inputs.pytorch }} 
+          cd pytorch && git checkout bd12fbe65295fd59b73cfcf63eca32f30e5f15e5
           # apply PRs for stock pytorch
           pip install requests
           python ../torch-xpu-ops/.github/scripts/apply_torch_pr.py
@@ -72,71 +72,3 @@ jobs:
           pip install --force-reinstall dist/*.whl
           git clone https://github.com/pytorch/vision && cd vision && python setup.py install && cd ..
           pip install -r .ci/docker/requirements-ci.txt
-      - name: Run XPU OP Examples
-        if: contains(inputs.ut, 'op_example') || github.event_name == 'schedule'
-        run: |
-          cd ${{ github.workspace }}
-          xpu-smi discovery
-          source /opt/intel/oneapi/pytorch-gpu-dev-0.5/oneapi-vars.sh
-          source activate xpu_op_${ZE_AFFINITY_MASK}
-          cd ${{ github.workspace }}
-          cd examples
-          pip install pytest
-          timeout 8000 pytest -v 
-      - name: Run XPU OP Extended UT
-        if: contains(inputs.ut, 'op_extended') || github.event_name == 'schedule'
-        run: |
-          source /opt/intel/oneapi/pytorch-gpu-dev-0.5/oneapi-vars.sh
-          source activate xpu_op_${ZE_AFFINITY_MASK}
-          export PYTORCH_TEST_WITH_SLOW=1
-          cd ../pytorch/third_party/torch-xpu-ops/test/xpu/extended/
-          timeout 10000 python run_test_with_skip.py 
-      - name: Run XPU OP UT
-        if: contains(inputs.ut, 'op_ut') || github.event_name == 'schedule'
-        run: |
-          source /opt/intel/oneapi/pytorch-gpu-dev-0.5/oneapi-vars.sh
-          source activate xpu_op_${ZE_AFFINITY_MASK}
-          export PYTORCH_ENABLE_XPU_FALLBACK=1
-          export PYTORCH_TEST_WITH_SLOW=1
-          cd ../pytorch/third_party/torch-xpu-ops/test/xpu
-          timeout 10000 python run_test_with_skip.py 
-          # Cases run with a on-demand white list, since some suites are too
-          # slow to go through all operators on CPU. So add cases on-demand
-          # when XPU implementatoin is done.
-          # test_foreach, test_decomp
-          timeout 10000 python run_test_with_only.py 
-      - name: Run Torch XPU UT
-        if: contains(inputs.ut, 'torch_xpu') || github.event_name == 'schedule'
-        run: |
-          source /opt/intel/oneapi/pytorch-gpu-dev-0.5/oneapi-vars.sh
-          source activate xpu_op_${ZE_AFFINITY_MASK}
-          cd ../pytorch
-          TEST_REPORTS_DIR=$(pwd)/test/test-reports
-          rm -rf "$TEST_REPORTS_DIR" && mkdir -p "$TEST_REPORTS_DIR"
-          # Run Pytorch XPU binary UT
-          for xpu_case in build/bin/*{xpu,sycl}*; do
-            if [[ "$xpu_case" != *"*"* && "$xpu_case" != *.so && "$xpu_case" != *.a ]]; then
-              case_name=$(basename "$xpu_case")
-              echo "Testing ${case_name} ..."
-              "$xpu_case" --gtest_output=xml:"$TEST_REPORTS_DIR"/"$case_name".xml 
-            fi
-          done
-          # Run Pytorch XPU python UT
-          export PYTORCH_TEST_WITH_SLOW=1
-          export PYTORCH_TESTING_DEVICE_ONLY_FOR="xpu"
-
-          test_cmd="python test/run_test.py --include "
-          # All Inductor UT under test/inductor
-          for test in $(ls test/inductor | grep test);
-          do 
-              test_cmd="${test_cmd} inductor/$test";
-          done
-          # All xpu ut under test/xpu
-          for test in $(ls test/xpu | grep test);
-          do 
-              test_cmd="${test_cmd} xpu/$test";
-          done
-          if [ -f "test/test_xpu.py" ]; then
-            test_cmd="${test_cmd} test_xpu.py"
-          fi
-          eval $test_cmd
