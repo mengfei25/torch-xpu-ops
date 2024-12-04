@@ -125,7 +125,10 @@ runs:
               do
                 contains "accuracy,performance" $scenario
                 $contains_status
-                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 1 static
+                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 5 static 3 0 &
+                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 6 static 3 1 &
+                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 7 static 3 2 &
+                wait
                 # summarize pass rate
                 LOG_DIR="inductor_log/${suite}/${dt}"
                 LOG_NAME=inductor_${suite}_${dt}_${mode}_xpu_${scenario}_all.log
