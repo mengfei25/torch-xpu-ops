@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--pr-list', '-n', nargs='+',
     default=[
         # Fallback to CPU for XPU FP64
-        "https://github.com/pytorch/pytorch/pull/126516",
+        # "https://github.com/pytorch/pytorch/pull/126516",
         # Modify the tolerance level in TIMM benchmark
         # "https://github.com/pytorch/pytorch/pull/129735",
         "https://github.com/mengfei25/pytorch/pull/21",

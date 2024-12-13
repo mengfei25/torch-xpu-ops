@@ -62,12 +62,10 @@ jobs:
       ut: ${{ github.event_name == 'schedule' && 'op_regression,op_regression_dev1,op_extended,op_ut,torch_xpu' || inputs.ut }}
       python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
       pytorch: nightly_wheel
-      runner: pvc_rolling
+      runner: 2404
 
   Linux-Nightly-Ondemand-E2E-WHL-Tests:
-    runs-on: pvc_rolling
-    # Don't run on forked repos
-    if: github.repository_owner == 'intel'
+    runs-on: 2404
     timeout-minutes: 36000
     env:
       pytorch: ${{ github.event_name == 'schedule' && 'nightly' || inputs.pytorch }}
