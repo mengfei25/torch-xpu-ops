@@ -50,6 +50,9 @@ jobs:
   Torch-XPU-UT-Tests:
     runs-on: ${{ inputs.runner }} 
     timeout-minutes: 9000
+    env:
+      NEOReadDebugKeys: 1
+      DisableScratchPages: 1
     steps:
       - name: Checkout torch-xpu-ops
         uses: actions/checkout@v4
@@ -138,7 +141,6 @@ jobs:
         run: |
           source ${HOME}/mengfeil/myvenv-ut/bin/activate
           cd ${{ github.workspace }}
-          xpu-smi discovery
           source .github/scripts/env.sh ${{ inputs.pytorch }}
           cd ${{ github.workspace }}
           cd test/regressions
@@ -149,7 +151,6 @@ jobs:
         run: |
           source ${HOME}/mengfeil/myvenv-ut/bin/activate
           cd ${{ github.workspace }}
-          xpu-smi discovery
           source .github/scripts/env.sh ${{ inputs.pytorch }}
           export ZE_AFFINITY_MASK_OLD=${ZE_AFFINITY_MASK}
           unset ZE_AFFINITY_MASK

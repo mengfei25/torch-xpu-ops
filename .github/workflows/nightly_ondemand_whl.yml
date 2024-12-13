@@ -62,17 +62,17 @@ jobs:
       ut: ${{ github.event_name == 'schedule' && 'op_regression,op_regression_dev1,op_extended,op_ut,torch_xpu' || inputs.ut }}
       python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
       pytorch: nightly_wheel
-      runner: e2e_internal
+      runner: 2410
 
   Linux-Nightly-Ondemand-E2E-WHL-Tests:
-    runs-on: e2e_internal
-    # Don't run on forked repos
-    if: github.repository_owner == 'intel'
+    runs-on: 2410
     timeout-minutes: 36000
     env:
       pytorch: ${{ github.event_name == 'schedule' && 'nightly' || inputs.pytorch }}
       ut: ${{ github.event_name == 'schedule' && 'op_regression,op_regression_dev1,op_extended,op_ut,torch_xpu' || inputs.ut }}
       python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
+      NEOReadDebugKeys: 1
+      DisableScratchPages: 1
     outputs:
       TORCH_BRANCH_ID: ${{ steps.installed.outputs.TORCH_BRANCH_ID }}
       TORCH_COMMIT_ID: ${{ steps.installed.outputs.TORCH_COMMIT_ID }}
