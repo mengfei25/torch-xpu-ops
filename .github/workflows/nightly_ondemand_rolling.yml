@@ -74,10 +74,10 @@ jobs:
       pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}
       python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
       driver: rolling
-      runner: 1236
+      runner: new
 
   Linux-Nightly-Ondemand-E2E-Tests-Rolling:
-    runs-on: 1236
+    runs-on: new
     timeout-minutes: 36000
     env:
       pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}
