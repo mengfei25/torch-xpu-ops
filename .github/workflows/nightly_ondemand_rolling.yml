@@ -66,18 +66,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
-  Linux-Nightly-Ondemand-UT-Tests-Rolling:
-    uses: ./.github/workflows/_linux_ut.yml
-    with:
-      keep_torch_xpu_ops: ${{ github.event_name == 'schedule' && 'false' || inputs.keep_torch_xpu_ops }}
-      ut: ${{ github.event_name == 'schedule' && 'op_regression,op_regression_dev1,op_extended,op_ut,torch_xpu' || inputs.ut }}
-      pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}
-      python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
-      driver: rolling
-      runner: new
 
   Linux-Nightly-Ondemand-E2E-Tests-Rolling:
-    runs-on: new
+    runs-on: 1024
     timeout-minutes: 36000
     env:
       pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}
