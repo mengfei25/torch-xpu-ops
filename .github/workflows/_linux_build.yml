@@ -42,5 +42,6 @@ jobs:
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 900
     steps:
-      - run: |
+    - name: BUILD
+      run: |
         echo "ABC=test" >> "${GITHUB_ENV}"

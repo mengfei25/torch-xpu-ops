@@ -86,6 +86,7 @@ jobs:
     needs: Linux-Nightly-Ondemand-Build
     timeout-minutes: 3600
     steps:
-      - run: |
+    - name: TEST
+      run: |
         echo "${GITHUB_ENV}"
         echo $ABC
