@@ -71,14 +71,15 @@ jobs:
     name: linux-nightly-ondemand-rolling
     permissions:
       issues: write
-    uses: ./.github/workflows/_linux_build.yml
-    with:
-      pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}
-      keep_torch_xpu_ops: ${{ github.event_name == 'schedule' && 'false' || inputs.keep_torch_xpu_ops }}
-      abi: 1
-      python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
-      driver: rolling
-      runner: debug
+    - id: BUILD
+      uses: ./.github/workflows/_linux_build.yml
+      with:
+        pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}
+        keep_torch_xpu_ops: ${{ github.event_name == 'schedule' && 'false' || inputs.keep_torch_xpu_ops }}
+        abi: 1
+        python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
+        driver: rolling
+        runner: debug
 
   Linux-Nightly-Ondemand-E2E-Tests:
     runs-on: debug
@@ -88,5 +89,5 @@ jobs:
     steps:
     - name: TEST
       run: |
-        echo "${GITHUB_ENV}"
-        echo $ABC
+        echo ${{ Linux-Nightly-Ondemand-Build.BUILD.outputs.torch_commit }}
+        echo ${{ Linux-Nightly-Ondemand-Build.outputs.torch_commit }}

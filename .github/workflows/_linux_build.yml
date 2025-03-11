@@ -33,6 +33,8 @@ on:
         type: string
         default: 'lts'
         description: Driver lts/rolling
+    outputs:
+      value: ${{ steps.set_torch_commit.outputs.torch_commit }}
 
 permissions:
   issues: write
@@ -43,5 +45,6 @@ jobs:
     timeout-minutes: 900
     steps:
     - name: BUILD
+      id: set_torch_commit
       run: |
-        echo "ABC=test" >> "${GITHUB_ENV}"
+        echo "torch_commit=test" >> "${GITHUB_OUTPUT}"
