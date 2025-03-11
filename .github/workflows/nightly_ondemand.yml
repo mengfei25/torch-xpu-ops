@@ -88,5 +88,4 @@ jobs:
     steps:
     - name: TEST
       run: |
-        echo ${{ Linux-Nightly-Ondemand-Build.steps.set_torch_commit.outputs.torch_commit }}
         echo ${{ Linux-Nightly-Ondemand-Build.outputs.torch_commit }}
