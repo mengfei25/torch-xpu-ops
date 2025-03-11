@@ -85,12 +85,7 @@ jobs:
     name: e2e_test
     needs: Linux-Nightly-Ondemand-Build
     timeout-minutes: 3600
-    env:
-      pytorch: ${{ needs.Linux-Nightly-Ondemand-Build.outputs.TORCH_COMMIT_ID }}
-      pytorch1: ${{ needs.Linux-Nightly-Ondemand-Build.build.outputs.TORCH_COMMIT_ID }}
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: my-artifact
-          path: pytorch-version
-      - run: ls pytorch-version && cat pytorch-version/hello.txt
+      - run: |
+        echo "${GITHUB_ENV}"
+        echo $ABC

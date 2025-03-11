@@ -42,11 +42,5 @@ jobs:
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 900
     steps:
-      - name: Create a File
-        run: echo "hello world" > hello.txt
-      - name: Upload Artifact
-        id: artifact-upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: my-artifact
-          path: hello.txt
+      - run: |
+        echo "ABC=test" >> "${GITHUB_ENV}"
