@@ -70,7 +70,7 @@ jobs:
     secrets: inherit
     name: linux-nightly-ondemand-rolling
     permissions:
-      issues: write
+      issues: 
     uses: ./.github/workflows/_linux_build.yml
     with:
       pytorch: ${{ github.event_name == 'schedule' && 'main' || inputs.pytorch }}
@@ -79,6 +79,9 @@ jobs:
       python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
       driver: rolling
       runner: debug
+    outputs:
+      torch_commit:
+        value: ${{ jobs.build.steps.set_torch_commit.outputs.torch_commit }}
 
   Linux-Nightly-Ondemand-E2E-Tests:
     runs-on: debug
