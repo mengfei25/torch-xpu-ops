@@ -34,7 +34,7 @@ on:
         default: 'lts'
         description: Driver lts/rolling
     outputs:
-      value: ${{ build.steps.set_torch_commit.outputs.torch_commit }}
+      value: ${{ jobs.build.steps.set_torch_commit.outputs.torch_commit }}
 
 permissions:
   issues: write
