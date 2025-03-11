@@ -85,7 +85,9 @@ jobs:
     name: e2e_test
     needs: Linux-Nightly-Ondemand-Build
     timeout-minutes: 3600
+    env:
+      torch_commit: ${{ Linux-Nightly-Ondemand-Build.outputs.torch_commit }}
     steps:
     - name: TEST
       run: |
-        echo ${{ Linux-Nightly-Ondemand-Build.outputs.torch_commit }}
+        echo ${{ env.torch_commit }} 
