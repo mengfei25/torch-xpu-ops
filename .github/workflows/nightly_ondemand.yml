@@ -78,10 +78,10 @@ jobs:
       abi: 1
       python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
       driver: rolling
-      runner: 1024
+      runner: debug
 
   Linux-Nightly-Ondemand-E2E-Tests:
-    runs-on: 1024
+    runs-on: debug
     name: e2e_test
     needs: Linux-Nightly-Ondemand-Build
     timeout-minutes: 3600
