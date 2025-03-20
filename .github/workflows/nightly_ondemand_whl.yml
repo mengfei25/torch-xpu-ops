@@ -116,7 +116,7 @@ jobs:
           # python ../torch-xpu-ops/.github/scripts/apply_torch_pr.py
           git status && git show -s
           pip install -r requirements.txt
-          TORCH_XPU_OPS_COMMIT=${{ github.sha }}
+          TORCH_XPU_OPS_COMMIT=$(cat third_party/xpu.txt)
           echo "TORCH_XPU_OPS_COMMIT=${TORCH_XPU_OPS_COMMIT}" |tee -a "${GITHUB_OUTPUT}" >> "${GITHUB_ENV}"
           rm -rf third_party/torch-xpu-ops
           git clone https://github.com/intel/torch-xpu-ops.git third_party/torch-xpu-ops
