@@ -53,10 +53,6 @@ if [[ $SHAPE == "dynamic" ]]; then
     Shape_extra="--dynamic-shapes --dynamic-batch-only "
 fi
 
-if [ "${SCENARIO}" == "performance" ];then
-    Shape_extra+=" --batch-size 2 "
-fi
-
 partition_flags=""
 if [[ -n "$NUM_SHARDS" && -n "$SHARD_ID" ]]; then
   partition_flags="--total-partitions $NUM_SHARDS --partition-id $SHARD_ID "
@@ -64,6 +60,6 @@ fi
 
 ulimit -n 1048576
 ZE_AFFINITY_MASK=${CARD} \
-    eval python benchmarks/dynamo/"${SUITE}".py --"${SCENARIO}" --"${Real_DT}" -d "${DEVICE}" -n10 "${DT_extra}" "${Mode_extra}" \
+    eval python benchmarks/dynamo/"${SUITE}".py --batch-size 2 --"${SCENARIO}" --"${Real_DT}" -d "${DEVICE}" -n10 "${DT_extra}" "${Mode_extra}" \
     "${Shape_extra}" "${partition_flags}" "${Model_only_extra}" --backend=inductor --cold-start-latency --timeout=10800 \
          --output="${LOG_DIR}"/"${LOG_NAME}".csv 2>&1 | tee "${LOG_DIR}"/"${LOG_NAME}"_card"${CARD}".log
