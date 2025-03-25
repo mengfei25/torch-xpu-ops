@@ -53,6 +53,10 @@ if [[ $SHAPE == "dynamic" ]]; then
     Shape_extra="--dynamic-shapes --dynamic-batch-only "
 fi
 
+if [ "${SCENARIO}" == "performance" ];then
+    Shape_extra+=" --batch-size 2 "
+fi
+
 partition_flags=""
 if [[ -n "$NUM_SHARDS" && -n "$SHARD_ID" ]]; then
   partition_flags="--total-partitions $NUM_SHARDS --partition-id $SHARD_ID "
