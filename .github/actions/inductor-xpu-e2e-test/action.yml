@@ -53,7 +53,7 @@ runs:
         source activate e2e_ci
         source .github/scripts/env.sh ${{ inputs.pytorch }}
         if [[ ${{ inputs.suite }} == *"torchbench"* ]]; then
-          if [ "${{ inputs.pytorch }}" != "nightly_wheel" ]; then
+          if [ "${{ inputs.pytorch }}" == "" ]; then
             cd ../ && rm -rf audio && git clone --single-branch -b main https://github.com/pytorch/audio.git
             cd audio && git checkout $TORCHAUDIO_COMMIT_ID
             python setup.py bdist_wheel && pip uninstall torchaudio -y && pip install dist/*.whl
@@ -75,7 +75,7 @@ runs:
           pip install --force-reinstall git+https://github.com/huggingface/transformers@${TRANSFORMERS_VERSION}
         fi
         if [[ ${{ inputs.suite }} == *"timm_models"* ]]; then
-          if [ "${{ inputs.pytorch }}" != "nightly_wheel" ]; then
+          if [ "${{ inputs.pytorch }}" == "" ]; then
             cd ../ && rm -rf vision && git clone --single-branch -b main https://github.com/pytorch/vision.git
             cd vision && git checkout $TORCHVISION_COMMIT_ID
             python setup.py bdist_wheel && pip uninstall torchvision -y && pip install dist/*.whl
@@ -125,19 +125,7 @@ runs:
               do
                 contains "accuracy,performance" $scenario
                 $contains_status
-                if [ "${MODEL_ONLY_NAME}" == "" ];then
-                  xpu_list=($(xpu-smi discovery |grep 'DRM Device: /dev/' |sed 's/.*card//;s/[^0-9].*//' |awk '{print $1 - 1":"NR - 1}'))
-                  for xpu_id in ${xpu_list[*]}
-                  do
-                    bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu ${xpu_id/:*} static ${#xpu_list[*]} ${xpu_id/*:} &
-                  done
-                else
-                  for test_model in $(echo ${MODEL_ONLY_NAME} |sed 's/,/ /g')
-                  do
-                    bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 0 static 1 0 ${test_model}
-                  done
-                fi
-                wait
+                bash inductor_xpu_test.sh ${suite} ${dt} ${mode} ${scenario} xpu 0 static
                 # summarize pass rate
                 LOG_DIR="inductor_log/${suite}/${dt}"
                 LOG_NAME=inductor_${suite}_${dt}_${mode}_xpu_${scenario}_all.log
