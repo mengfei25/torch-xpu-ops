@@ -58,6 +58,8 @@ if [[ -n "$NUM_SHARDS" && -n "$SHARD_ID" ]]; then
   partition_flags="--total-partitions $NUM_SHARDS --partition-id $SHARD_ID "
 fi
 
+sync; sudo sh -c "echo 3 > /proc/sys/vm/drop_caches" || true
+
 ulimit -n 1048576
 ZE_AFFINITY_MASK=${CARD} \
     eval python benchmarks/dynamo/"${SUITE}".py --batch-size 2 --"${SCENARIO}" --"${Real_DT}" -d "${DEVICE}" -n10 "${DT_extra}" "${Mode_extra}" \
