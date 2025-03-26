@@ -93,9 +93,6 @@ jobs:
             TRITON_COMMIT_ID="${{ inputs.triton }}"
           fi
           echo ${TRITON_REPO}@${TRITON_COMMIT_ID}
-          if [ "${{ inputs.pytorch }}" != "nightly_wheel" ]; then
-            pip install --force-reinstall "git+${TRITON_REPO}@${TRITON_COMMIT_ID}#subdirectory=python"
-          fi
       - name: Download Pytorch wheel
         if: ${{ inputs.pytorch != 'nightly_wheel' }}
         uses: actions/download-artifact@v4
