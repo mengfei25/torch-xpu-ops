@@ -30,11 +30,11 @@ jobs:
           gh api \
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
-                /repos/${GITHUB_REPOSITORY:-"intel/torch-xpu-ops"}/actions/artifacts/${target}/zip > target.zip
+                /repos/${GITHUB_REPOSITOR:-"intel/torch-xpu-ops"}/actions/artifacts/${target}/zip > target.zip
           gh api \
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
-                /repos/${GITHUB_REPOSITORY:-"intel/torch-xpu-ops"}/actions/artifacts/${baseline}/zip > baseline.zip
+                /repos/${GITHUB_REPOSITOR:-"intel/torch-xpu-ops"}/actions/artifacts/${baseline}/zip > baseline.zip
           mkdir target baseline
           unzip target.zip -d target
           unzip baseline.zip -d baseline
