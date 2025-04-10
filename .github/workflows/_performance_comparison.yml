@@ -29,7 +29,6 @@ jobs:
       - name: Cleanup workspace
         run: |
           rm -rf ./*
-          git clone https://github.com/intel/torch-xpu-ops
       - name: Get comparison artifacts
         run: |
           gh api \
@@ -45,4 +44,5 @@ jobs:
           unzip baseline.zip -d baseline
       - name: Comparison result
         run: |
+          git clone https://github.com/intel/torch-xpu-ops torch-xpu-ops
           python ./torch-xpu-ops/.github/scripts/perf_comparison.py -xpu target -refer baseline >> ${GITHUB_STEP_SUMMARY}
