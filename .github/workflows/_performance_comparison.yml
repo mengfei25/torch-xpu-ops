@@ -22,6 +22,10 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Install gh
+        run: |
+          sudo apt update
+          sudo apt install gh
       - name: Cleanup workspace
         run: |
           rm -rf ./*
