@@ -18,7 +18,7 @@ permissions: read-all
 
 jobs:
   Performance-Comparison:
-    runs-on: ubuntu-latest
+    runs-on: 1024
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
