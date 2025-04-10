@@ -18,13 +18,13 @@ permissions: read-all
 
 jobs:
   Performance-Comparison:
-    runs-on: 1024
+    runs-on: ubuntu-latest
     steps:
       - name: Cleanup workspace
         run: |
           rm -rf ./*
       - name: Checkout torch-xpu-ops
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       - name: Get comparison artifacts
         run: |
           gh api \
