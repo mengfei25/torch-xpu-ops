@@ -3,6 +3,11 @@ name: Performance Comparison
 on:
   workflow_dispatch:
     inputs:
+      repo:
+        required: true
+        type: string
+        default: 'intel/torch-xpu-ops'
+        description: Repository name
       target:
         required: true
         type: string
@@ -19,31 +24,31 @@ permissions: read-all
 jobs:
   Performance-Comparison:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Install gh
-        run: |
-          sudo apt update
-          sudo apt install -y gh python3-dev python3-pip python3-venv git
       - name: Cleanup workspace
         run: |
           rm -rf ./*
-      - name: Get comparison artifacts
-        run: |
-          gh api \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                /repos/intel/torch-xpu-ops/actions/artifacts/${{ inputs.target }}/zip > target.zip
-          gh api \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                /repos/intel/torch-xpu-ops/actions/artifacts/${{ inputs.baseline }}/zip > baseline.zip
-          mkdir target baseline
-          unzip target.zip -d target
-          unzip baseline.zip -d baseline
+          sudo apt update
+          sudo apt install -y gh python3-dev python3-pip python3-venv git
+      - name: Checkout torch-xpu-ops
+        uses: actions/checkout@v4
+      - name: Download target artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: E2E
+          repository: ${{ inputs.repo }}
+          path: ${{ github.workspace }}/target
+          run_id: ${{ inputs.target }}
+      - name: Download baseline artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: E2E
+          path: ${{ github.workspace }}/baseline
+          run_id: ${{ inputs.baseline }}
       - name: Comparison result
         run: |
-          git clone https://github.com/mengfei25/torch-xpu-ops xpu
+          cd ${{ github.workspace }}/target && unzip *.zip
+          cd ${{ github.workspace }}/baseline && unzip *.zip
+          cd ${{ github.workspace }}
           python3 -m pip install pandas
-          python3 xpu/.github/scripts/perf_comparison.py -xpu target -refer baseline >> ${GITHUB_STEP_SUMMARY}
+          python3 .github/scripts/perf_comparison.py -xpu target -refer baseline >> ${GITHUB_STEP_SUMMARY}
