@@ -56,7 +56,7 @@ def check_merged(pr_info):
 
 def appyly_pr(pull_number, re_apply_msg):
     # apply diff
-    apply_cmd = f"git reset --hard && git pull origin pull/{pull_number}/head --no-commit "
+    apply_cmd = f"git reset --hard && git pull origin pull/{pull_number}/head --no-commit --no-ff "
     apply_info = subprocess.Popen(apply_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
     apply_message = apply_info.communicate()[0].decode("utf-8")
     apply_status = apply_info.returncode
