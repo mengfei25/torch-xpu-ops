@@ -69,7 +69,6 @@ jobs:
   Linux-Nightly-Ondemand-Build-Rolling:
     # Don't run on forked repos
     secrets: inherit
-    if: ${{ github.repository_owner == 'intel' }}
     name: linux-nightly-ondemand-rolling
     permissions:
       issues: write
@@ -79,13 +78,12 @@ jobs:
       keep_torch_xpu_ops: ${{ github.event_name == 'schedule' && 'false' || inputs.keep_torch_xpu_ops }}
       python: ${{ github.event_name == 'schedule' && '3.10' || inputs.python }}
       driver: rolling
-      runner: pytorch-11
+      runner: 1024
       ut: ${{ inputs.ut }}
 
   Linux-Nightly-Ondemand-E2E-Tests-Rolling:
-    runs-on: pytorch-11
+    runs-on: 1024
     # Don't run on forked repos
-    if: ${{ github.repository_owner == 'intel' }}
     name: linux-nightly-ondemand-rolling / e2e_test
     needs: Linux-Nightly-Ondemand-Build-Rolling
     timeout-minutes: 3600
