@@ -108,7 +108,7 @@ jobs:
             wget --no-proxy http://mengfeil-ubuntu.sh.intel.com/pytorch/xpu/bundle/2025.2/intel-deep-learning-essentials-2025.2.0.484_offline.sh
             bash intel-deep-learning-essentials-2025.2.0.484_offline.sh -a -s --eula accept --action install
           else
-            wget --no-proxy https://registrationcenter-download.intel.com/akdlm/IRC_NAS/3435dc45-055e-4f7a-86b1-779931772404/intel-deep-learning-essentials-2025.1.3.7_offline.sh
+            wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/3435dc45-055e-4f7a-86b1-779931772404/intel-deep-learning-essentials-2025.1.3.7_offline.sh
             bash intel-deep-learning-essentials-2025.1.3.7_offline.sh -a -s --eula accept --action install
           fi
           source ${{ github.workspace }}/torch-xpu-ops/.github/scripts/env.sh
