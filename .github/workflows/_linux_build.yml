@@ -53,6 +53,7 @@ jobs:
       image: 'pytorch/manylinux2_28-builder:xpu-main'
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
+        - /home/gta:/home/gta
       env:
         PATH: /opt/xpu-build/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         commit_issue: 1280
