@@ -171,7 +171,7 @@ jobs:
           if [ "${{ inputs.ut }}" == "oneapi" ];then
             pip uninstall -y intel-cmplr-lib-rt intel-cmplr-lib-ur intel-cmplr-lic-rt intel-sycl-rt oneccl-devel oneccl impi-rt onemkl-sycl-blas \
                 onemkl-sycl-dft onemkl-sycl-lapack onemkl-sycl-rng onemkl-sycl-sparse dpcpp-cpp-rt intel-opencl-rt mkl intel-openmp tbb tcmlib umf intel-pti
-            pip install --no-deps /home/sdp/mengfeil/2025.2/*.whl
+            pip install --no-deps /home/gta/mengfeil/2025.2/*.whl
           fi
       - name: Show GITHUB_ENV
         run: |
