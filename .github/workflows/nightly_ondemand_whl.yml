@@ -74,5 +74,5 @@ jobs:
           which python
           python -V
           pip list
-          pip install numpy
+          pip install numpy pandas
           printenv
