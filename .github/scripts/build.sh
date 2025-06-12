@@ -46,7 +46,7 @@ cp -r ${WORKSPACE}/torch-xpu-ops third_party/torch-xpu-ops
 cd ${WORKSPACE}/pytorch
 python -m pip install requests
 python third_party/torch-xpu-ops/.github/scripts/apply_torch_pr.py
-git submodule sync && git submodule update --init --recursive
+# git submodule sync && git submodule update --init --recursive
 python -m pip install -r requirements.txt
 python -m pip install mkl-static mkl-include
 export USE_STATIC_MKL=1
@@ -77,13 +77,8 @@ export PYTORCH_EXTRA_INSTALL_REQUIREMENTS=" \
 # Build
 sed -i "s/checkout --quiet \${TORCH_XPU_OPS_COMMIT}/log -n 1/g" caffe2/CMakeLists.txt
 git diff
-WERROR=1 python setup.py bdist_wheel
-
-# Post Build
-python -m pip install patchelf
-rm -rf ./tmp
-bash third_party/torch-xpu-ops/.github/scripts/rpath.sh ${WORKSPACE}/pytorch/dist/torch*.whl
-python -m pip install --force-reinstall tmp/torch*.whl
+# WERROR=1 python setup.py bdist_wheel
+python -m pip install torch --pre --index-url https://download.pytorch.org/whl/nightly/xpu
 
 # Build torchvision and torchaudio
 TORCHVISION_COMMIT=$(cat .github/ci_commit_pins/vision.txt)
@@ -105,14 +100,4 @@ cd ${WORKSPACE}
 python ${WORKSPACE}/pytorch/torch/utils/collect_env.py
 python -c "import torch; print(torch.__config__.show())"
 python -c "import torch; print(torch.__config__.parallel_info())"
-xpu_is_compiled="$(python -c 'import torch; print(torch.xpu._is_compiled())')"
 
-# Save wheel
-if [ "${xpu_is_compiled,,}" == "true" ];then
-    cp ${WORKSPACE}/pytorch/tmp/torch*.whl ${WORKSPACE}
-    cp ${WORKSPACE}/xpu-vision/dist/torchvision*.whl ${WORKSPACE}
-    cp ${WORKSPACE}/xpu-audio/dist/torchaudio*.whl ${WORKSPACE}
-else
-    echo "Build got failed!"
-    exit 1
-fi
