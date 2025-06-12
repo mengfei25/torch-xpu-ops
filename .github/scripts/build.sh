@@ -83,17 +83,16 @@ python -m pip install torch --pre --index-url https://download.pytorch.org/whl/n
 # Build torchvision and torchaudio
 TORCHVISION_COMMIT=$(cat .github/ci_commit_pins/vision.txt)
 TORCHAUDIO_COMMIT=$(cat .github/ci_commit_pins/audio.txt)
-cd ..
-rm -rf xpu-vision && git clone https://github.com/pytorch/vision.git xpu-vision
-cd xpu-vision && git checkout ${TORCHVISION_COMMIT}
+rm -rf ${WORKSPACE}/xpu-vision && git clone https://github.com/pytorch/vision.git ${WORKSPACE}/xpu-vision
+cd ${WORKSPACE}/xpu-vision && git checkout ${TORCHVISION_COMMIT}
 python setup.py bdist_wheel
 pip install dist/torchvision*.whl
-cd .. && rm -rf xpu-vision
-rm -rf xpu-audio && git clone https://github.com/pytorch/audio.git xpu-audio
-cd xpu-audio && git checkout ${TORCHAUDIO_COMMIT}
+cd - && rm -rf ${WORKSPACE}/xpu-vision
+rm -rf ${WORKSPACE}/xpu-audio && git clone https://github.com/pytorch/audio.git ${WORKSPACE}/xpu-audio
+cd ${WORKSPACE}/xpu-audio && git checkout ${TORCHAUDIO_COMMIT}
 python setup.py bdist_wheel
 pip install dist/torchaudio*.whl
-cd .. && rm -rf xpu-audio
+cd - && rm -rf ${WORKSPACE}/xpu-audio
 
 # Verify
 cd ${WORKSPACE}
