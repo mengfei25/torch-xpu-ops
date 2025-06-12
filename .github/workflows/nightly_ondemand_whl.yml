@@ -70,3 +70,4 @@ jobs:
           which python
           python -V
           pip list
+          pip install numpy
