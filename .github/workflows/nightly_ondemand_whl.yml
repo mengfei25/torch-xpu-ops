@@ -71,3 +71,4 @@ jobs:
           python -V
           pip list
           pip install numpy
+          printenv
