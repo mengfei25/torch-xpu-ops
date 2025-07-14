@@ -105,7 +105,7 @@ jobs:
             TORCH_XPU_OPS_COMMIT=$(<third_party/xpu.txt)
             git clone https://github.com/intel/torch-xpu-ops.git third_party/torch-xpu-ops
             cd third_party/torch-xpu-ops
-            git checkout ${TORCH_XPU_OPS_COMMIT}
+            git checkout mengfeil/test-2.8-skip-crach
           fi
       - name: Triton Installation
         run: |
