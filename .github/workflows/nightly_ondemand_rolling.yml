@@ -14,21 +14,8 @@ on:
 permissions: read-all
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    outputs:
-      node_name: ${{ steps.setVariables.outputs.node_name }}
-    steps:
-      - id: setVariables
-        run: |
-          echo "node_name=${{ inputs.node_name }}" >> ${GITHUB_OUTPUT}
   test:
-    runs-on: ${{ matrix.node_name }}
-    needs: setup
-    strategy:
-      fail-fast: false
-      matrix:
-        node_name: ${{ needs.setup.outputs.node_name }}
+    runs-on: ${{ inputs.node_name }}
     steps:
       - name: Checkout repository
         run: |
