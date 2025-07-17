@@ -59,12 +59,12 @@ jobs:
     permissions:
       issues: write
     container:
-      image: 'xpu:test'
+      image: mengfeili/intel-pvc-driver:1146-1136
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
       options: --device=/dev/mem --device=/dev/dri --privileged --shm-size=8g
       env:
-        AGENT_TOOLSDIRECTORY: "${{ github.workspace }}/_tools"
+        AGENT_TOOLSDIRECTORY: "/opt/_tools"
         GH_TOKEN: ${{ github.token }}
         HUGGING_FACE_HUB_TOKEN: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
         reference_issue: 1645
