@@ -1,4 +1,4 @@
-name: Linux PyTorch XPU Build
+name: Linux E2E Test
 
 on:
   workflow_call:
@@ -50,7 +50,7 @@ on:
         default: ''
         description: Model. Will only run this one mode if set
 
-permissions: read-all
+permissions: write-all
 
 jobs:
   e2e_test:
