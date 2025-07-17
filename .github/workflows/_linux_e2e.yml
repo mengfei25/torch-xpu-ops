@@ -62,7 +62,8 @@ jobs:
       image: mengfeili/intel-pvc-driver:1146-1136
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
-      options: --device=/dev/mem --device=/dev/dri --privileged --shm-size=8g
+        - /etc/group:/etc/group
+      options: --device=/dev/mem --device=/dev/dri --privileged --shm-size=8g -u jenkins
       env:
         AGENT_TOOLSDIRECTORY: "/opt/_tools"
         GH_TOKEN: ${{ github.token }}
@@ -71,6 +72,7 @@ jobs:
     steps:
       - name: Cleanup workspace
         run: |
+          whoami
           rm -rf ~/.triton /tmp ./* || sudo rm -rf ~/.triton /tmp ./*
           mkdir -m 777 /tmp || sudo mkdir -m 777 /tmp
       - name: Checkout torch-xpu-ops
@@ -79,9 +81,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python }}
-      - name: Prepare Conda ENV
+      - name: Check python
         run: |
           which python
+          python -V
           pip list
           pip install pandas scipy psutil requests
       - name: Install oneAPI DLE
