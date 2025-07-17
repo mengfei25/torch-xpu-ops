@@ -89,7 +89,7 @@ jobs:
               torch_xpu_ops="main"
             fi
           else
-            if [["${{ inputs.pytorch }}" == *"_wheel"]];then
+            if [[ "${{ inputs.pytorch }}" == *"_wheel" ]];then
               test_type="wheel-ondemand"
               pytorch="${{ inputs.pytorch }}"
               torch_xpu_ops="pinned"
