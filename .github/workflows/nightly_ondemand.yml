@@ -150,7 +150,7 @@ jobs:
       model: ${{ github.event_name == 'schedule' && '' || inputs.model }}
 
   Windows-Nightly-Ondemand-UT-Tests:
-    if: ${{ github.event_name == 'schedule' || inputs.ut != '' }}
+    if: ${{ github.event_name == 'schedule' }}
     name: Windows-nightly-ondemand
     uses: ./.github/workflows/_windows_ut.yml
     with:
