@@ -53,7 +53,7 @@ on:
 permissions: read-all
 
 jobs:
-  e2e:
+  e2e_test:
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 3600
     permissions:
