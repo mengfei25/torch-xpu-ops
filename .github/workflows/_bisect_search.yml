@@ -90,7 +90,9 @@ jobs:
     defaults:
       run:
         shell: bash -xe {0}
+        working-directory: /tmp/workspace/bisect-search
     steps:
+      - run: printenv
       - name: Install the gh cli
         uses: ksivamuthu/actions-setup-gh-cli@v3
         with:
