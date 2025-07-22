@@ -41,10 +41,6 @@ on:
 
 permissions: read-all
 
-defaults:
-  run:
-    shell: bash -xe {0}
-
 jobs:
   get_runner:
     runs-on: ${{ inputs.runner }}
@@ -87,11 +83,15 @@ jobs:
       options: --device=/dev/mem --device=/dev/dri --group-add video --privileged --shm-size=8g
               -u ${{ needs.get_runner.outputs.test_user }}:${{ needs.get_runner.outputs.test_group }}
       env:
+        AGENT_TOOLSDIRECTORY: /tmp/_tools
         GH_TOKEN: ${{ github.token }}
         SEARCH_COMMITS: ${{ inputs.search_commits }}
         SEARCH_CHECK: ${{ inputs.search_check }}
         SEARCH_CASE: ${{ inputs.search_case }}
         SEARCH_CRITERIA: ${{ inputs.search_criteria }}
+    defaults:
+      run:
+        shell: bash -xe {0}
     steps:
       - name: Setup gh
         run: |
