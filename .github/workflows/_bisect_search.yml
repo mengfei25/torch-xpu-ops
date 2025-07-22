@@ -41,6 +41,10 @@ on:
 
 permissions: read-all
 
+defaults:
+  run:
+    shell: bash -xe {0}
+
 jobs:
   get_runner:
     runs-on: ${{ inputs.runner }}
@@ -87,16 +91,9 @@ jobs:
         SEARCH_CHECK: ${{ inputs.search_check }}
         SEARCH_CASE: ${{ inputs.search_case }}
         SEARCH_CRITERIA: ${{ inputs.search_criteria }}
-    defaults:
-      run:
-        shell: bash -xe {0}
-        working-directory: /tmp/workspace/bisect-search
     steps:
-      - run: printenv
-      - name: Install the gh cli
-        uses: ksivamuthu/actions-setup-gh-cli@v3
-        with:
-          version: latest
+      - name: Setup gh
+        uses: actions4gh/setup-gh@v1
       - name: Setup gcc
         uses: Dup4/actions-setup-gcc@v1
         with:
