@@ -93,10 +93,15 @@ jobs:
         SEARCH_CASE: ${{ inputs.search_case }}
         SEARCH_CRITERIA: ${{ inputs.search_criteria }}
     steps:
+      - name: Setup gh
+        run: |
+          curl -sS https://webi.sh/gh | sh
+          echo "PATH=${HOME}/.local/bin:$PATH" >> ${GITHUB_ENV}
       - name: Setup gcc
-        uses: Dup4/actions-setup-gcc@v1
+        uses: egor-tensin/setup-gcc@v1
         with:
           version: 11
+          platform: x64
       - name: Setup python-${{ inputs.python }}
         uses: actions/setup-python@v5
         with:
@@ -107,6 +112,7 @@ jobs:
           find ./ |grep -v "^\./$" |xargs rm -rf
           hostname && whoami && id
           clinfo --list
+          gh --version
           gcc -v && g++ -v
           which python && which pip
           python -V
