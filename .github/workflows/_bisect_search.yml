@@ -97,11 +97,6 @@ jobs:
         run: |
           curl -sS https://webi.sh/gh | sh
           echo "PATH=${HOME}/.local/bin:$PATH" >> ${GITHUB_ENV}
-      - name: Setup gcc
-        uses: egor-tensin/setup-gcc@v1
-        with:
-          version: 11
-          platform: x64
       - name: Setup python-${{ inputs.python }}
         uses: actions/setup-python@v5
         with:
