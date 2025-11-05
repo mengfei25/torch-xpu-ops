@@ -38,4 +38,4 @@ jobs:
         uses: ./.github/actions/add-comment
         with:
           file_path: ./performance.regression.pr.html
-          github_token: ${{ github.token }}
+          github_token: ${{ secrets.XPU_GH_TOKEN }}
