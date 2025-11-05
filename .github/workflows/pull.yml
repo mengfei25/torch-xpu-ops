@@ -22,8 +22,7 @@ concurrency:
 jobs:
   summary:
     runs-on: ubuntu-24.04
-    permissions:
-      issues: write
+    permissions: write-all
     env:
       GH_TOKEN: ${{ github.token }}
       REFERENCE_ISSUE_ID: 1645
@@ -38,4 +37,4 @@ jobs:
         uses: ./.github/actions/add-comment
         with:
           file_path: ./performance.regression.pr.html
-          github_token: ${{ secrets.XPU_GH_TOKEN }}
+          github_token: ${{ github.token }}
