@@ -1,4 +1,4 @@
-name: pull
+name: Test Comparison for P0 scope
 
 on:
   workflow_dispatch:
