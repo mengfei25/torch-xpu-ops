@@ -113,7 +113,7 @@ permissions:
   actions: read
   id-token: write
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 env:
   WORKSPACE: ${{ github.workspace }}
@@ -341,7 +341,7 @@ jobs:
       contents: read
       issues: write
       actions: read
-      pull-requests: read
+      pull-requests: write
       checks: write
     uses: ./.github/workflows/_linux_e2e_summary.yml
     with:
