@@ -52,6 +52,7 @@ jobs:
   execute-ondemand-tests:
     name: Execute OnDemand Tests
     uses: ./.github/workflows/_test_call.yml
+    permissions: write-all
     with:
       # Determine test type based on pytorch input
       test_type: >-
