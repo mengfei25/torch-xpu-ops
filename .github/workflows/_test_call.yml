@@ -112,6 +112,8 @@ permissions:
   checks: write
   actions: read
   id-token: write
+  issues: write
+  pull-requests: write
 
 env:
   WORKSPACE: ${{ github.workspace }}
@@ -287,6 +289,7 @@ jobs:
       checks: write
       actions: read
       issues: write
+      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
@@ -354,6 +357,8 @@ jobs:
       contents: read
       checks: write
       actions: read
+      issues: write
+      pull-requests: write
     secrets: inherit
     uses: ./.github/workflows/_linux_op_benchmark.yml
     with:
