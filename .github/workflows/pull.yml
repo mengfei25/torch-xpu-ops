@@ -17,8 +17,9 @@ permissions:
   contents: read
   checks: write
   actions: read
-  pull-requests: read
-  issues: read
+  id-token: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
