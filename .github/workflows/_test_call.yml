@@ -1,4 +1,4 @@
-name: OnDemand Test Workflow
+name: Test Workflow Call
 
 on:
   workflow_call:
