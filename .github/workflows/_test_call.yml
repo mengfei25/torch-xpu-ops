@@ -261,7 +261,6 @@ jobs:
   linux-build:
     name: Linux Build
     needs: [parse-test-inputs]
-    if: ${{ needs.parse-test-inputs.outputs.should_build == 'true' }}
     secrets: inherit
     uses: ./.github/workflows/_linux_build.yml
     with:
@@ -270,6 +269,7 @@ jobs:
       torch_xpu_ops: ${{ needs.parse-test-inputs.outputs.torch_xpu_ops }}
       triton: ${{ inputs.triton }}
       python: ${{ inputs.python }}
+      should_build: ${{ needs.parse-test-inputs.outputs.should_build }}
 
   linux-ut-tests:
     name: Linux Unit Tests
