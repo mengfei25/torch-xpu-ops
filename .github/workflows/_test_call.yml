@@ -113,7 +113,7 @@ permissions:
   actions: read
   id-token: write
   issues: write
-  pull-requests: write
+  pull-requests: read
 
 env:
   WORKSPACE: ${{ github.workspace }}
@@ -289,7 +289,7 @@ jobs:
       checks: write
       actions: read
       issues: write
-      pull-requests: write
+      pull-requests: read
     strategy:
       fail-fast: false
       matrix:
@@ -340,7 +340,8 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: write
+      actions: read
+      pull-requests: read
       checks: write
     uses: ./.github/workflows/_linux_e2e_summary.yml
     with:
@@ -358,7 +359,7 @@ jobs:
       checks: write
       actions: read
       issues: write
-      pull-requests: write
+      pull-requests: read
     secrets: inherit
     uses: ./.github/workflows/_linux_op_benchmark.yml
     with:
