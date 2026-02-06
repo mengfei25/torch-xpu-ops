@@ -70,6 +70,7 @@ jobs:
         ! contains(needs.conditions-filter.outputs.disabled_tests, 'disable_all')
       }}
     uses: ./.github/workflows/_test_call.yml
+    permissions: write-all
     with:
       test_type: ${{ needs.conditions-filter.outputs.test_type }}
       pytorch: ${{ needs.conditions-filter.outputs.pytorch_version }}
@@ -100,6 +101,7 @@ jobs:
         (needs.conditions-filter.outputs.has_label == 'true' || needs.conditions-filter.outputs.src_changed == 'true')
       }}
     uses: ./.github/workflows/_test_call.yml
+    permissions: write-all
     with:
       test_type: ${{ needs.conditions-filter.outputs.test_type }}
       pytorch: ${{ needs.conditions-filter.outputs.pytorch_version }}
