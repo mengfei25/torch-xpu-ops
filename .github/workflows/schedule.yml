@@ -16,6 +16,7 @@ permissions:
   checks: write
   actions: read
   id-token: write
+  issues: write
 
 run-name: |
   ${{
