@@ -55,7 +55,7 @@ run-name: OnDemand / ${{ inputs.pytorch }}
 jobs:
   execute-ondemand-tests:
     name: Execute OnDemand Tests
-    uses: ./.github/workflows/ondemand-workflow.yml
+    uses: ./.github/workflows/_test_call.yml
     with:
       # Determine test type based on pytorch input
       test_type: >-

@@ -74,7 +74,7 @@ jobs:
         github.event.pull_request.draft == false &&
         ! contains(needs.conditions-filter.outputs.disabled_tests, 'disable_all')
       }}
-    uses: ./.github/workflows/ondemand-workflow.yml
+    uses: ./.github/workflows/_test_call.yml
     with:
       test_type: ${{ needs.conditions-filter.outputs.test_type }}
       pytorch: ${{ needs.conditions-filter.outputs.pytorch_version }}
@@ -104,7 +104,7 @@ jobs:
         ! contains(needs.conditions-filter.outputs.disabled_tests, 'disable_win') &&
         (needs.conditions-filter.outputs.has_label == 'true' || needs.conditions-filter.outputs.src_changed == 'true')
       }}
-    uses: ./.github/workflows/ondemand-workflow.yml
+    uses: ./.github/workflows/_test_call.yml
     with:
       test_type: ${{ needs.conditions-filter.outputs.test_type }}
       pytorch: ${{ needs.conditions-filter.outputs.pytorch_version }}
