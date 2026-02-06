@@ -99,6 +99,24 @@ on:
         default: false
         description: 'Set to true for scheduled runs (affects build behavior)'
 
+      # Comparison
+      test_role:
+        type: string
+        default: 'default'
+        description: 'Role for test comparison'
+      component:
+        type: string
+        default: 'default'
+        description: 'Component name for comparison'
+      component_version:
+        type: string
+        default: ''
+        description: 'Component version for comparison'
+      comparison_type:
+        type: string
+        default: ''
+        description: 'Test scope for comparison'
+
     secrets:
       HUGGING_FACE_HUB_TOKEN:
         required: false
@@ -270,6 +288,8 @@ jobs:
       triton: ${{ inputs.triton }}
       python: ${{ inputs.python }}
       should_build: ${{ needs.parse-test-inputs.outputs.should_build }}
+      component: ${{ inputs.component }}
+      component_version: ${{ inputs.component_version }}
 
   linux-ut-tests:
     name: Linux Unit Tests
@@ -290,6 +310,9 @@ jobs:
       torch_xpu_ops: ${{ needs.parse-test-inputs.outputs.torch_xpu_ops }}
       python: ${{ inputs.python }}
       ut: ${{ matrix.ut_name }}
+      component: ${{ inputs.component }}
+      component_version: ${{ inputs.component_version }}
+      comparison_type: ${{ inputs.comparison_type }}
 
   linux-e2e-tests:
     name: Linux E2E Tests
@@ -313,6 +336,9 @@ jobs:
       mode: ${{ inputs.mode }}
       scenario: ${{ inputs.scenario }}
       model: ${{ inputs.model }}
+      component: ${{ inputs.component }}
+      component_version: ${{ inputs.component_version }}
+      comparison_type: ${{ inputs.comparison_type }}
 
   linux-e2e-tests-summary:
     name: E2E Test Summary
@@ -360,3 +386,73 @@ jobs:
       runner: ${{ inputs.windows_runner }}
       torch_xpu_ops: ${{ needs.parse-test-inputs.outputs.torch_xpu_ops }}
       pytorch: ${{ needs.parse-test-inputs.outputs.pytorch }}
+
+  # Manage artifacts
+  manage-artifacts:
+    name: Manage Artifacts
+    needs: [linux-ut-tests, linux-e2e-tests-summary]
+    if: ${{ inputs.test_role != 'default' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+      checks: write
+    env:
+      ARCHIVE_DIR: 'archieve-${{ inputs.test_role }}'
+    steps:
+      - name: Download workflow artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded_artifacts
+      - name: Archive artifacts to specific directory
+        run: |
+          # Create target directory
+          rm -rf "$ARCHIVE_DIR"
+          # Move all downloaded artifacts to the archive directory
+          if [ -d "downloaded_artifacts" ]; then
+            # Move all files and preserve directory structure
+            mv downloaded_artifacts "$ARCHIVE_DIR"
+          fi
+      - name: Delete all original artifacts BEFORE upload
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+
+            console.log('Deleting all original artifacts before uploading archive...');
+
+            try {
+              // List all artifacts for this workflow run
+              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: owner,
+                repo: repo,
+                run_id: runId,
+              });
+
+              console.log(`Found ${artifacts.data.artifacts.length} original artifacts to delete`);
+
+              // Delete each artifact
+              let deletedCount = 0;
+              for (const artifact of artifacts.data.artifacts) {
+                console.log(`Deleting original artifact: ${artifact.name} (ID: ${artifact.id})`);
+                await github.rest.actions.deleteArtifact({
+                  owner: owner,
+                  repo: repo,
+                  artifact_id: artifact.id,
+                });
+                deletedCount++;
+              }
+
+              console.log(`Successfully deleted ${deletedCount} original artifacts`);
+            } catch (error) {
+              console.error('Error deleting original artifacts:', error.message);
+              // Continue execution even if deletion fails
+              console.log('Continuing with archive upload...');
+            }
+
+      - name: Upload archived artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE_DIR }}
+          path: ${{ env.ARCHIVE_DIR }}
+          retention-days: 7

@@ -14,6 +14,12 @@ inputs:
   suite:
     default: 'None'
     description: 'Dynamo benchmarks test suite. Options: huggingface,timm_models,torchbench,pt2e (comma-separated)'
+  component:
+    default: ''
+    description: 'Component name for comparison'
+  component_version:
+    default: ''
+    description: 'Component version for comparison'
 
 runs:
   using: composite
@@ -107,8 +113,6 @@ runs:
     - name: Checkout torch-xpu-ops repository
       uses: actions/checkout@v4
       with:
-        repository: intel/torch-xpu-ops
-        ref: main
         path: torch-xpu-ops
         fetch-depth: 1
 
@@ -120,11 +124,28 @@ runs:
         path: ./wheels
         merge-multiple: true
 
+    - name: Setup oneAPI DLE
+      shell: bash -eo pipefail {0}
+      if: ${{ inputs.component == 'oneapi' }}
+      run: |
+        rm -rf ~/intel ~/.intel ${HOME}/intel /opt/intel
+        wget -q -O oneapi.sh "${{ inputs.component_version }}"
+        bash oneapi.sh -a -s --eula accept --action remove || true
+        bash oneapi.sh -a -s --eula accept --action install --install-dir ${HOME}/intel/oneapi
+        echo "XPU_ONEAPI_PATH=${HOME}/intel/oneapi" >> ${GITHUB_ENV}
+
     - name: Install and Configure Pytorch
       shell: bash -eo pipefail {0}
       run: |
         echo "=== Installing Pytorch ==="
         echo "Pytorch input: ${{ inputs.pytorch }}"
+
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
 
         # Function to extract repo and commit from input
         extract_repo_commit() {
@@ -497,6 +518,12 @@ runs:
     - name: Verify Environment Configuration
       shell: bash -eo pipefail {0}
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Final Environment Verification ==="
 
         echo -e "\n=== Environment Variables ==="

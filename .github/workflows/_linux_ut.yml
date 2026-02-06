@@ -34,6 +34,18 @@ on:
           - basic: Basic tests (op_regression, op_transformers, op_extended, op_regression_dev1)
           - xpu_distributed: XPU distributed tests
           - xpu_profiling: XPU profiling tests
+      component:
+        type: string
+        default: ''
+        description: 'Component name for comparison'
+      component_version:
+        type: string
+        default: ''
+        description: 'Component version for comparison'
+      comparison_type:
+        type: string
+        default: ''
+        description: 'Test scope for comparison'
 
 permissions: read-all
 
@@ -117,6 +129,8 @@ jobs:
           torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
           python: ${{ inputs.python }}
           suite: ${{ contains(inputs.ut, 'transformers') && 'huggingface' || 'None' }}
+          component: ${{ inputs.component }}
+          component_version: ${{ inputs.component_version }}
 
       - name: Run XPU Unit Tests
         uses: ./.github/actions/linux-uttest
@@ -214,6 +228,8 @@ jobs:
           torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
           python: ${{ inputs.python }}
           suite: 'None'
+          component: ${{ inputs.component }}
+          component_version: ${{ inputs.component_version }}
 
       - name: Run XPU Unit Tests (Baremetal)
         uses: ./.github/actions/linux-uttest

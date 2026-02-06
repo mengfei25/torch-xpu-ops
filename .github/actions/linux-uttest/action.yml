@@ -47,6 +47,12 @@ runs:
       env:
         LOG_DIR: ${{ github.workspace }}/ut_log/${{ inputs.ut_name }}
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running op_regression Tests ==="
         mkdir -p "${LOG_DIR}"
 
@@ -76,6 +82,12 @@ runs:
       env:
         LOG_DIR: ${{ github.workspace }}/ut_log/${{ inputs.ut_name }}
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running op_regression_dev1 Tests (Device 1) ==="
         mkdir -p "${LOG_DIR}"
 
@@ -115,6 +127,12 @@ runs:
         LOG_DIR: ${{ github.workspace }}/ut_log/${{ inputs.ut_name }}
         PYTORCH_TEST_WITH_SLOW: 1
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running op_transformers Tests ==="
         mkdir -p "${LOG_DIR}"
 
@@ -146,6 +164,12 @@ runs:
         LOG_DIR: ${{ github.workspace }}/ut_log/${{ inputs.ut_name }}
         PYTORCH_TEST_WITH_SLOW: 1
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running op_extended Tests ==="
         mkdir -p "${LOG_DIR}"
 
@@ -189,6 +213,12 @@ runs:
         PYTORCH_TEST_WITH_SLOW: 1
         LOG_BASE: ${{ github.workspace }}/ut_log/op_ut
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running All XPU Operation Unit Tests ==="
         mkdir -p "${LOG_BASE}"
 
@@ -224,6 +254,12 @@ runs:
         PYTORCH_TEST_WITH_SLOW: 1
         LOG_BASE: ${{ github.workspace }}/ut_log/skipped_ut
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running Skipped Unit Tests ==="
         mkdir -p "${LOG_BASE}"
 
@@ -260,6 +296,12 @@ runs:
         PYTORCH_TESTING_DEVICE_ONLY_FOR: "xpu"
         LOG_BASE: ${{ github.workspace }}/ut_log/torch_xpu
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running PyTorch XPU Tests ==="
         mkdir -p "${LOG_BASE}"
 
@@ -315,6 +357,12 @@ runs:
         LOG_BASE: ${{ github.workspace }}/ut_log/xpu_profiling
         ISSUE_REPRODUCE_DIR: ${{ github.workspace }}/ut_log/xpu_profiling/issue_reproduce
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running XPU Profiling Tests ==="
         mkdir -p "${LOG_BASE}"
         mkdir -p "${ISSUE_REPRODUCE_DIR}"
@@ -404,6 +452,12 @@ runs:
       env:
         LOG_BASE: ${{ github.workspace }}/ut_log/xpu_distributed
       run: |
+        # Set test environment
+        if [ "${XPU_ONEAPI_PATH}" != "" ];then
+          source "${XPU_ONEAPI_PATH}/setvars.sh" || {
+            echo "Warning: Failed to source environment script"
+          }
+        fi
         echo "=== Running XPU Distributed Tests ==="
         mkdir -p "${LOG_BASE}"
 

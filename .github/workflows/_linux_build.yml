@@ -29,6 +29,14 @@ on:
         type: string
         default: 'false'
         description: 'Build: false (default), Build from source or use nightly wheel'
+      component:
+        type: string
+        default: ''
+        description: 'Component name for comparison'
+      component_version:
+        type: string
+        default: ''
+        description: 'Component version for comparison'
 
 permissions: read-all
 
@@ -188,10 +196,18 @@ jobs:
       - name: Checkout torch-xpu-ops repository
         uses: actions/checkout@v4
         with:
-          repository: intel/torch-xpu-ops
-          ref: main
           path: torch-xpu-ops
           fetch-depth: 1
+
+      - name: Setup oneAPI DLE
+        shell: bash -eo pipefail {0}
+        if: ${{ inputs.component == 'oneapi' }}
+        run: |
+          rm -rf ~/intel ~/.intel ${HOME}/intel /opt/intel
+          wget -q -O oneapi.sh "${{ inputs.component_version }}"
+          bash oneapi.sh -a -s --eula accept --action remove || true
+          bash oneapi.sh -a -s --eula accept --action install --install-dir ${HOME}/intel/oneapi
+          echo "XPU_ONEAPI_PATH=${HOME}/intel/oneapi" >> ${GITHUB_ENV}
 
       - name: Build PyTorch XPU
         shell: bash -eo pipefail {0}
@@ -218,42 +234,15 @@ jobs:
           # Parse repository and commit information
           echo "Parsing repository configurations..."
 
-          # Function to extract repo and commit
-          extract_repo_commit() {
-            local input="$1"
-            local default_repo="$2"
-            local default_commit="$3"
-
-            if [[ "${input}" == *"@"* ]]; then
-              repo="${input%%@*}"
-              commit="${input##*@}"
-            else
-              repo="${default_repo}"
-              commit="${input}"
-            fi
-
-            echo "${repo} ${commit}"
-          }
-
-          # Parse PyTorch configuration
-          read -r PYTORCH_REPO PYTORCH_COMMIT <<< "$(extract_repo_commit \
-            "${{ inputs.pytorch }}" \
-            "https://github.com/pytorch/pytorch.git" \
-            "main")"
-
-          # Parse torch-xpu-ops configuration
-          read -r TORCH_XPU_OPS_REPO TORCH_XPU_OPS_COMMIT <<< "$(extract_repo_commit \
-            "${{ inputs.torch_xpu_ops }}" \
-            "https://github.com/intel/torch-xpu-ops.git" \
-            "main")"
-
           echo "PyTorch configuration:"
-          echo "  - Repository: ${PYTORCH_REPO}"
-          echo "  - Commit: ${PYTORCH_COMMIT}"
+          echo "  - PyTorch ${{ inputs.pytorch }}"
           echo ""
           echo "Torch-xpu-ops configuration:"
-          echo "  - Repository: ${TORCH_XPU_OPS_REPO}"
-          echo "  - Commit: ${TORCH_XPU_OPS_COMMIT}"
+          echo "  - Torch-XPU-Ops: ${{ inputs.torch_xpu_ops }}"
+          echo ""
+          echo "Build configuration:"
+          echo "  - Component: ${{ inputs.component }}"
+          echo "  - Component version: ${{ inputs.component_version }}"
           echo ""
           echo "Build environment:"
           echo "  - USE_XCCL: ${USE_XCCL}"
@@ -266,10 +255,10 @@ jobs:
 
           "${WORKSPACE}/torch-xpu-ops/.github/scripts/build.sh" \
             --WORKSPACE="${WORKSPACE}" \
-            --PYTORCH_REPO="${PYTORCH_REPO}" \
-            --PYTORCH_COMMIT="${PYTORCH_COMMIT}" \
-            --TORCH_XPU_OPS_REPO="${TORCH_XPU_OPS_REPO}" \
-            --TORCH_XPU_OPS_COMMIT="${TORCH_XPU_OPS_COMMIT}" \
+            --PYTORCH="${{ inputs.pytorch }}" \
+            --TORCH_XPU_OPS="${{ inputs.torch_xpu_ops }}" \
+            --COMPONENT="${{ inputs.component }}" \
+            --COMPONENT_COMMIT="${{ inputs.component_version }}" \
             2>&1 | tee "${BUILD_LOG_FILE}"
 
           # Check if build succeeded
@@ -425,7 +414,17 @@ jobs:
           }
 
           # Determine Triton commit
-          if [ -z "${{ inputs.triton }}" ] || [ "${{ inputs.triton }}" = "pinned" ]; then
+          TRITON_REPO_OWNER="intel/intel-xpu-backend-for-triton"
+          if [ "${{ inputs.component }}" == "triton" ]; then
+            spec="${{ inputs.component_version }}"
+            if [[ "$spec" == *"@"* ]]; then
+              TRITON_REPO_OWNER="$(echo ${spec%%@*} |sed 's+.*github.com/++;s+\.git.*++')"
+              TRITON_COMMIT_ID="${spec##*@}"
+            else
+              # If no repo specified, assume it's just a commit/branch/tag for default repo
+              TRITON_COMMIT_ID="$(cat .ci/docker/ci_commit_pins/triton-xpu.txt 2>/dev/null || echo 'main')"
+            fi
+          elif [ -z "${{ inputs.triton }}" ] || [ "${{ inputs.triton }}" = "pinned" ]; then
             TRITON_COMMIT_ID="$(cat .ci/docker/ci_commit_pins/triton-xpu.txt 2>/dev/null || echo 'main')"
             echo "Using pinned Triton commit: ${TRITON_COMMIT_ID}"
           else
@@ -471,7 +470,7 @@ jobs:
 
             # Get Triton version from source
             TRITON_VERSION_NAME=$(
-              curl -sSL "https://raw.githubusercontent.com/intel/intel-xpu-backend-for-triton/${TRITON_COMMIT_ID}/python/triton/__init__.py" 2>&1 | \
+              curl -sSL "https://raw.githubusercontent.com/intel/${TRITON_REPO_OWNER}/${TRITON_COMMIT_ID}/python/triton/__init__.py" 2>&1 | \
                 grep '__version__' | head -n 1 | awk -F "'" '{print $2}' || echo "unknown"
             )
 
@@ -489,6 +488,8 @@ jobs:
             # Build Triton
             BUILD_LOG_FILE="${WORKSPACE}/build_triton_${TRITON_COMMIT_ID}.log"
 
+            sed -i "s+intel/intel-xpu-backend-for-triton+${TRITON_REPO_OWNER}+g" .github/scripts/build_triton_wheel.py
+            git diff .github/scripts/build_triton_wheel.py
             python .github/scripts/build_triton_wheel.py \
               --device xpu \
               --commit-hash "${TRITON_COMMIT_ID}" \

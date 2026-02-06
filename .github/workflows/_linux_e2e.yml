@@ -45,6 +45,18 @@ on:
         type: string
         default: ''
         description: 'Specific model to test. If set, only this model will be tested'
+      component:
+        type: string
+        default: ''
+        description: 'Component name for comparison'
+      component_version:
+        type: string
+        default: ''
+        description: 'Component version for comparison'
+      comparison_type:
+        type: string
+        default: ''
+        description: 'Test scope for comparison'
 
 permissions: read-all
 
@@ -121,6 +133,8 @@ jobs:
           pytorch: ${{ inputs.pytorch }}
           python: ${{ inputs.python }}
           suite: ${{ inputs.suite }}
+          component: ${{ inputs.component }}
+          component_version: ${{ inputs.component_version }}
 
       # Helper function to check if suite is in input
       - name: Parse suite configuration
