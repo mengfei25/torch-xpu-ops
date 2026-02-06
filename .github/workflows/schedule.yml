@@ -28,7 +28,7 @@ jobs:
   execute-scheduled-tests:
     name: Execute Scheduled Tests
     if: ${{ github.repository_owner == 'intel' }}
-    uses: ./.github/workflows/ondemand-workflow.yml
+    uses: ./.github/workflows/_test_call.yml
     with:
       # Determine configuration based on schedule
       test_type: >-
