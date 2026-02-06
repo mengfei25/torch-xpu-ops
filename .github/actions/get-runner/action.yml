@@ -316,10 +316,8 @@ runs:
         fi
 
         # Fix permissions for /tmp
-        if [ -d "/tmp" ] && [ -w "/tmp" ]; then
-          sudo chown "${CURRENT_USER}:${CURRENT_GROUP}" "/tmp" -R 2>/dev/null || \
-            echo "Warning: Could not change ownership of /tmp"
-        fi
+        sudo chmod 777 /tmp -R 2>/dev/null || \
+          echo "Warning: Could not change ownership of /tmp"
 
         # Fix permissions for current directory
         if [ -d "." ]; then

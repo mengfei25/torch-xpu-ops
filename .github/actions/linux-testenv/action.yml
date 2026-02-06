@@ -48,7 +48,8 @@ runs:
         fi
 
         echo -e "\n=== Cleaning Temporary Files ==="
-        rm -rf ~/.triton /tmp/*inductor* /tmp/tmp* 2>/dev/null || true
+        sudo rm -rf ~/.triton ~/.torch /tmp/* 2>/dev/null || true
+        sudo chmod 777 /tmp/ -R 2>/dev/null || true
 
         if [ -n "${AGENT_TOOLSDIRECTORY}" ]; then
           echo "Cleaning AGENT_TOOLSDIRECTORY: ${AGENT_TOOLSDIRECTORY}"
