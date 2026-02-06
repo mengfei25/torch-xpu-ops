@@ -26,10 +26,7 @@ on:
         default: '3.10'
         description: 'Python version'
 
-permissions:
-  contents: read
-  checks: write
-  actions: read
+permissions: read-all
 
 defaults:
   run:

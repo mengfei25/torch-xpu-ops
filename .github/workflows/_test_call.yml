@@ -107,13 +107,7 @@ on:
         required: false
         description: 'Docker Hub token for image pulls'
 
-permissions:
-  contents: read
-  checks: write
-  actions: read
-  id-token: write
-  issues: write
-  pull-requests: write
+permissions: read-all
 
 env:
   WORKSPACE: ${{ github.workspace }}
@@ -284,12 +278,6 @@ jobs:
       - linux-build
     if: ${{ needs.parse-test-inputs.outputs.has_ut_tests == 'true' }}
     secrets: inherit
-    permissions:
-      contents: read
-      checks: write
-      actions: read
-      issues: write
-      pull-requests: read
     strategy:
       fail-fast: false
       matrix:
@@ -337,12 +325,6 @@ jobs:
           needs.linux-e2e-tests.result == 'cancelled'
         )
       }}
-    permissions:
-      contents: read
-      issues: write
-      actions: read
-      pull-requests: write
-      checks: write
     uses: ./.github/workflows/_linux_e2e_summary.yml
     with:
       test_type: ${{ needs.parse-test-inputs.outputs.test_type }}
@@ -354,12 +336,6 @@ jobs:
       - parse-test-inputs
       - linux-build
     if: ${{ needs.parse-test-inputs.outputs.has_microbench == 'true' }}
-    permissions:
-      contents: read
-      checks: write
-      actions: read
-      issues: write
-      pull-requests: read
     secrets: inherit
     uses: ./.github/workflows/_linux_op_benchmark.yml
     with:

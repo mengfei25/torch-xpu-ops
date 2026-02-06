@@ -13,13 +13,7 @@ on:
       - main
       - release/*
 
-permissions:
-  contents: read
-  checks: write
-  actions: read
-  id-token: write
-  issues: write
-  pull-requests: write
+permissions: read-all
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}

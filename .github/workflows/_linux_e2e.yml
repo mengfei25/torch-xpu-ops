@@ -46,11 +46,7 @@ on:
         default: ''
         description: 'Specific model to test. If set, only this model will be tested'
 
-permissions:
-  contents: read
-  checks: write
-  actions: read
-  id-token: write
+permissions: read-all
 
 defaults:
   run:

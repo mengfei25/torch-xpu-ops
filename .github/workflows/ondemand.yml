@@ -44,13 +44,7 @@ on:
         default: ''
         description: 'Specific model to test'
 
-permissions:
-  contents: read
-  checks: write
-  actions: read
-  id-token: write
-  issues: write
-  pull-requests: write
+permissions: read-all
 
 run-name: OnDemand / ${{ inputs.pytorch }}
 

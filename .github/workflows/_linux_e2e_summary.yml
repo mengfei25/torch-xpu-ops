@@ -16,12 +16,7 @@ on:
         default: '3.10'
         description: 'Python version for summary processing'
 
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-  checks: write
-  actions: read
+permissions: read-all
 
 defaults:
   run:
@@ -38,8 +33,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       issues: write
-      pull-requests: write
-      contents: read
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       REFERENCE_ISSUE_ID: 1645

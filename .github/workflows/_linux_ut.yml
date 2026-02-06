@@ -35,12 +35,7 @@ on:
           - xpu_distributed: XPU distributed tests
           - xpu_profiling: XPU profiling tests
 
-permissions:
-  contents: read
-  checks: write
-  actions: read
-  issues: write
-  pull-requests: read
+permissions: read-all
 
 defaults:
   run:
@@ -301,8 +296,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       issues: write
-      contents: read
-      checks: write
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       WORKSPACE: ${{ github.workspace }}
