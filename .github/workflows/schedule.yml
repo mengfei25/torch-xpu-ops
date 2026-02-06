@@ -11,13 +11,7 @@ on:
     # GMT+8 00:00 Saturday (Nightly wheel)
     - cron: '30 16 * * 5'
 
-permissions:
-  contents: read
-  checks: write
-  actions: read
-  id-token: write
-  issues: write
-  pull-requests: write
+permissions: read-all
 
 run-name: |
   ${{
