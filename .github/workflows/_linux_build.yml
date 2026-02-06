@@ -46,7 +46,6 @@ env:
 jobs:
   runner:
     runs-on: ${{ inputs.runner }}
-    if: ${{ inputs.should_build == 'true' }}
     name: get-runner
     outputs:
       runner_id: ${{ steps.runner-info.outputs.runner_id }}
@@ -74,7 +73,7 @@ jobs:
   build:
     name: Build PyTorch XPU
     needs: runner
-    if: ${{ !contains(inputs.pytorch, '_wheel') }}
+    if: ${{ !contains(inputs.pytorch, '_wheel') && inputs.should_build == 'true' }}
     runs-on: ${{ needs.runner.outputs.runner_id }}
     container:
       image: 'pytorch/manylinux2_28-builder:xpu-main'
