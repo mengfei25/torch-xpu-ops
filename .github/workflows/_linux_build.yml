@@ -25,6 +25,10 @@ on:
         type: string
         default: '3.10'
         description: 'Python version'
+      should_build:
+        type: string
+        default: 'false'
+        description: 'Build: false (default), Build from source or use nightly wheel'
 
 permissions: read-all
 
@@ -42,6 +46,7 @@ env:
 jobs:
   runner:
     runs-on: ${{ inputs.runner }}
+    if: ${{ inputs.should_build == 'true' }}
     name: get-runner
     outputs:
       runner_id: ${{ steps.runner-info.outputs.runner_id }}
