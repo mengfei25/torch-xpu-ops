@@ -194,7 +194,7 @@ runs:
 
         # Clone pytorch repository for patching
         echo -e "\n=== Cloning Pytorch Repository ==="
-        read -r PYTORCH_REPO PYTORCH_COMMIT <<< "$(extract_repo_commit "${{ inputs.pytorch }}")"
+        read -r PYTORCH_REPO PYTORCH_COMMIT <<< "$(extract_repo_commit "${{ inputs.pytorch }}" |tail -n 1)"
 
         if [ "${PYTORCH_COMMIT}" = "main" ] || [ "${PYTORCH_COMMIT}" = "release_wheel" ] || \
            [ "${PYTORCH_COMMIT}" = "test_wheel" ] || [ "${PYTORCH_COMMIT}" = "nightly_wheel" ]; then
@@ -270,7 +270,7 @@ runs:
           echo "${repo} ${commit}"
         }
 
-        read -r TORCH_XPU_OPS_REPO TORCH_XPU_OPS_COMMIT <<< "$(extract_torch_xpu_ops_info "${{ inputs.torch_xpu_ops }}")"
+        read -r TORCH_XPU_OPS_REPO TORCH_XPU_OPS_COMMIT <<< "$(extract_torch_xpu_ops_info "${{ inputs.torch_xpu_ops }}" |tail -n 1)"
 
         echo "Torch-xpu-ops repo: ${TORCH_XPU_OPS_REPO}"
         echo "Torch-xpu-ops commit: ${TORCH_XPU_OPS_COMMIT}"
