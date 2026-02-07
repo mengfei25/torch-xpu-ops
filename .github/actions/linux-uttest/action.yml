@@ -29,7 +29,7 @@ runs:
         echo ""
         echo "=== PIP Environment ==="
         pip --version || echo "pip not found"
-        pip list --format=columns | head -10 || echo "pip list failed"
+        pip list --format=columns || echo "pip list failed"
 
         echo -e "\n=== Copying Test Configuration ==="
         CONFTEST_SRC="${GITHUB_WORKSPACE}/.github/scripts/conftest.py"

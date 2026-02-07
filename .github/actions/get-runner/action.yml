@@ -35,7 +35,7 @@ runs:
   steps:
     - name: Get runner information
       id: runner
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         # Extract runner ID from RUNNER_NAME (remove trailing -number)
         runner_id="${RUNNER_NAME%-[0-9]}"
@@ -59,7 +59,7 @@ runs:
         echo "Hostname: $(hostname)"
 
     - name: Show system information
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         echo "=== CPU Information ==="
         lscpu
@@ -87,7 +87,7 @@ runs:
 
         echo -e "\n=== Intel GPU Runtime Packages ==="
         if command -v dpkg > /dev/null; then
-          dpkg -l | grep -E 'intel-opencl-icd|libze-dev|libigc-dev' || true
+          dpkg -l | grep -E 'intel|libze|libigc' || true
         fi
 
         echo -e "\n=== GPU Devices (clinfo) ==="
@@ -103,7 +103,7 @@ runs:
         fi
 
     - name: Optimize CPU frequency and clean cache
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         # Check current CPU frequency governor
         if [ -d /sys/devices/system/cpu/cpu0/cpufreq ]; then
@@ -153,7 +153,7 @@ runs:
 
     - name: Distribute CPUs and GPUs for optimal performance
       id: cpu-gpu
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         # Function to calculate CPU count
         get_cpu_count() {
@@ -291,7 +291,7 @@ runs:
         echo "Generated pytest_extra_args: ${pytest_extra_args}"
 
     - name: Cleanup and fix permissions
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         # Clean Docker cache if Docker is available
         if command -v docker > /dev/null && docker info > /dev/null 2>&1; then
