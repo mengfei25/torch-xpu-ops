@@ -212,9 +212,9 @@ runs:
         }
 
         # Main execution
-        cpu_num=$(get_cpu_count)
-        total_xpu_num=$(get_total_xpu_count)
-        online_xpu_num=$(get_online_xpu_count)
+        cpu_num=$(get_cpu_count |tail -n 1)
+        total_xpu_num=$(get_total_xpu_count |tail -n 1)
+        online_xpu_num=$(get_online_xpu_count |tail -n 1)
 
         echo "CPU cores: ${cpu_num}"
         echo "Total XPU devices: ${total_xpu_num}"
@@ -236,7 +236,7 @@ runs:
         echo "CPUs per XPU: ${cpus_per_xpu}"
 
         # Get active XPU list
-        ZE_AFFINITY_MASK=$(get_active_xpu_list "${total_xpu_num}")
+        ZE_AFFINITY_MASK=$(get_active_xpu_list "${total_xpu_num}" |tail -n 1)
         echo "Active XPU list: ${ZE_AFFINITY_MASK}"
 
         # Parse XPU list into array
