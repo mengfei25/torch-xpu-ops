@@ -321,7 +321,7 @@ runs:
         # Function to check if suite is in input
         suite_contains() {
           local suite="$1"
-          [[ ",${SUITE_INPUT}," == *",${suite},"* ]] || [[ "${SUITE_INPUT}" == "${suite}" ]] || [[ "${SUITE_INPUT}" == "None" ]]
+          [[ ",${SUITE_INPUT}," == *",${suite},"* ]] || [[ "${SUITE_INPUT}" == "${suite}" ]]
         }
 
         # Install common dependencies
