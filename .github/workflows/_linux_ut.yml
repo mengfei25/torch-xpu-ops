@@ -136,8 +136,6 @@ jobs:
         uses: ./.github/actions/linux-uttest
         with:
           ut_name: ${{ inputs.ut }}
-          pytorch: ${{ inputs.pytorch }}
-          pytest_extra_args: ${{ needs.runner.outputs.pytest_extra_args }}
 
       - name: Collect and upload UT logs
         id: upload-logs
@@ -235,8 +233,6 @@ jobs:
         uses: ./.github/actions/linux-uttest
         with:
           ut_name: ${{ inputs.ut }}
-          pytorch: ${{ inputs.pytorch }}
-          pytest_extra_args: ""
 
       - name: Collect and upload UT logs (Baremetal)
         id: upload-logs-baremetal
@@ -496,60 +492,3 @@ jobs:
           if-no-files-found: warn
           compression-level: 6
           overwrite: true
-
-      - name: Generate Workflow Summary
-        if: always()
-        shell: bash -eo pipefail {0}
-        run: |
-          echo "=== Generating Workflow Summary ==="
-
-          SUMMARY_DIR="${WORKSPACE}/ut_log"
-
-          if [ ! -d "${SUMMARY_DIR}" ]; then
-            echo "No UT logs found for summary"
-            exit 0
-          fi
-
-          # Find summary files
-          FAILURE_FILES=$(find "${SUMMARY_DIR}" -name "failures_*.log" -type f)
-          SUMMARY_FILE=$(find "${SUMMARY_DIR}" -name "ut_summary.txt" -type f)
-
-          echo "## UT Test Results Summary" >> "${GITHUB_STEP_SUMMARY}"
-          echo "" >> "${GITHUB_STEP_SUMMARY}"
-
-          if [ -n "${SUMMARY_FILE}" ] && [ -s "${SUMMARY_FILE}" ]; then
-            echo "### Test Execution Overview" >> "${GITHUB_STEP_SUMMARY}"
-            cat "${SUMMARY_FILE}" | tail -n +3 >> "${GITHUB_STEP_SUMMARY}"
-            echo "" >> "${GITHUB_STEP_SUMMARY}"
-          fi
-
-          if [ -n "${FAILURE_FILES}" ]; then
-            echo "### Failures Detected" >> "${GITHUB_STEP_SUMMARY}"
-            for failure_file in ${FAILURE_FILES}; do
-              ut_name=$(basename "${failure_file}" | sed 's/failures_\(.*\)\.log/\1/')
-              failure_count=$(wc -l < "${failure_file}" 2>/dev/null || echo "0")
-              if [ "${failure_count}" -gt 0 ]; then
-                echo "- **${ut_name}**: ${failure_count} failures" >> "${GITHUB_STEP_SUMMARY}"
-              fi
-            done
-            echo "" >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "### ✅ No Failures Detected" >> "${GITHUB_STEP_SUMMARY}"
-            echo "" >> "${GITHUB_STEP_SUMMARY}"
-          fi
-
-          echo "### Log Files Available" >> "${GITHUB_STEP_SUMMARY}"
-          find "${SUMMARY_DIR}" -type f -name "*.log" -o -name "*.csv" | \
-            sort | head -15 | while read -r file; do
-              echo "- $(basename "${file}")" >> "${GITHUB_STEP_SUMMARY}"
-            done
-
-          if [ $(find "${SUMMARY_DIR}" -type f -name "*.log" -o -name "*.csv" | wc -l) -gt 15 ]; then
-            echo "- ... and more" >> "${GITHUB_STEP_SUMMARY}"
-          fi
-
-          echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "---" >> "${GITHUB_STEP_SUMMARY}"
-          echo "*Generated on $(date)*" >> "${GITHUB_STEP_SUMMARY}"
-
-          echo "Workflow summary generated"

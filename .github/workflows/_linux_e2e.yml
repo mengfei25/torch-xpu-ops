@@ -191,7 +191,6 @@ jobs:
           dt: bfloat16,float16
           mode: training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       - name: Execute CI/CD TIMM models tests
         if: ${{ github.event_name == 'pull_request' && steps.parse-suites.outputs.HAS_TIMM_MODELS == '1' }}
@@ -201,7 +200,6 @@ jobs:
           dt: bfloat16
           mode: training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       - name: Execute CI/CD TorchBench tests
         if: ${{ github.event_name == 'pull_request' && steps.parse-suites.outputs.HAS_TORCHBENCH == '1' }}
@@ -211,7 +209,6 @@ jobs:
           dt: bfloat16
           mode: training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       # Nightly Test Execution
       - name: Execute Nightly HuggingFace full tests
@@ -222,7 +219,6 @@ jobs:
           dt: float32,bfloat16,float16,amp_bf16,amp_fp16
           mode: inference,training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       - name: Execute Nightly TIMM models tests
         if: ${{ contains(inputs.test_type, 'nightly') && steps.parse-suites.outputs.HAS_TIMM_MODELS == '1' }}
@@ -232,7 +228,6 @@ jobs:
           dt: float16,bfloat16
           mode: training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       - name: Execute Nightly TorchBench tests
         if: ${{ contains(inputs.test_type, 'nightly') && steps.parse-suites.outputs.HAS_TORCHBENCH == '1' }}
@@ -242,7 +237,6 @@ jobs:
           dt: float16,bfloat16
           mode: training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       - name: Execute Nightly PT2E tests
         if: ${{ contains(inputs.test_type, 'nightly') && steps.parse-suites.outputs.HAS_PT2E == '1' }}
@@ -260,7 +254,6 @@ jobs:
           dt: float32,bfloat16,float16,amp_bf16,amp_fp16
           mode: inference,training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       - name: Execute Weekly TIMM models full tests
         if: ${{ contains(inputs.test_type, 'weekly') && steps.parse-suites.outputs.HAS_TIMM_MODELS == '1' }}
@@ -270,7 +263,6 @@ jobs:
           dt: float32,bfloat16,float16,amp_bf16,amp_fp16
           mode: inference,training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       - name: Execute Weekly TorchBench full tests
         if: ${{ contains(inputs.test_type, 'weekly') && steps.parse-suites.outputs.HAS_TORCHBENCH == '1' }}
@@ -280,7 +272,6 @@ jobs:
           dt: float32,bfloat16,float16,amp_bf16,amp_fp16
           mode: inference,training
           scenario: accuracy,performance
-          ut_name: ${{ inputs.model }}
 
       - name: Execute Weekly PT2E tests
         if: ${{ contains(inputs.test_type, 'weekly') && steps.parse-suites.outputs.HAS_PT2E == '1' }}
@@ -358,7 +349,6 @@ jobs:
           dt: ${{ steps.parse-dtypes.outputs.E2E_DTYPES }}
           mode: ${{ inputs.mode }}
           scenario: ${{ inputs.scenario }}
-          ut_name: ${{ inputs.model }}
 
       - name: Execute On-demand TIMM models tests
         if: ${{ contains(inputs.test_type, 'ondemand') && steps.parse-suites.outputs.HAS_TIMM_MODELS == '1' }}
@@ -368,7 +358,6 @@ jobs:
           dt: ${{ steps.parse-dtypes.outputs.E2E_DTYPES }}
           mode: ${{ inputs.mode }}
           scenario: ${{ inputs.scenario }}
-          ut_name: ${{ inputs.model }}
 
       - name: Execute On-demand TorchBench tests
         if: ${{ contains(inputs.test_type, 'ondemand') && steps.parse-suites.outputs.HAS_TORCHBENCH == '1' }}
@@ -378,7 +367,6 @@ jobs:
           dt: ${{ steps.parse-dtypes.outputs.E2E_DTYPES }}
           mode: ${{ inputs.mode }}
           scenario: ${{ inputs.scenario }}
-          ut_name: ${{ inputs.model }}
 
       - name: Execute On-demand PT2E tests
         if: ${{ contains(inputs.test_type, 'ondemand') && steps.parse-suites.outputs.HAS_PT2E == '1' }}
