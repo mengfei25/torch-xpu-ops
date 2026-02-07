@@ -25,7 +25,7 @@ runs:
   using: composite
   steps:
     - name: Verify runner environment
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         echo "=== Runner Environment Verification ==="
         echo "Hostname: $(hostname)"
@@ -48,7 +48,7 @@ runs:
 
         echo -e "\n=== Intel GPU Runtime Packages ==="
         if command -v dpkg > /dev/null; then
-          dpkg -l | grep -E 'libigc-dev|libze-dev|level-zero-dev|intel-opencl-icd' || echo "No Intel GPU packages found via dpkg"
+          dpkg -l | grep -E 'libigc|libze|level-zero|intel' || echo "No Intel GPU packages found via dpkg"
         else
           echo "dpkg not available"
         fi
@@ -81,7 +81,7 @@ runs:
         cache: 'pip'
 
     - name: Verify Python installation
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         echo "=== Python Environment Check ==="
         python_path=$(which python)
@@ -103,7 +103,7 @@ runs:
 
         echo "=== PIP Environment ==="
         pip --version || echo "pip not found"
-        pip list --format=columns | head -20 || echo "pip list failed"
+        pip list --format=columns || echo "pip list failed"
 
         echo -e "\n=== Updating Python Tools ==="
         pip install -U pip wheel setuptools --quiet || {
@@ -125,7 +125,7 @@ runs:
         merge-multiple: true
 
     - name: Setup oneAPI DLE
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       if: ${{ inputs.component == 'oneapi' }}
       run: |
         rm -rf ~/intel ~/.intel ${HOME}/intel /opt/intel
@@ -135,7 +135,7 @@ runs:
         echo "XPU_ONEAPI_PATH=${HOME}/intel/oneapi" >> ${GITHUB_ENV}
 
     - name: Install and Configure Pytorch
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         echo "=== Installing Pytorch ==="
         echo "Pytorch input: ${{ inputs.pytorch }}"
@@ -238,7 +238,7 @@ runs:
         cd ..
 
     - name: Configure Torch-xpu-ops
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         echo "=== Configuring Torch-xpu-ops ==="
         echo "Torch-xpu-ops input: ${{ inputs.torch_xpu_ops }}"
@@ -310,7 +310,7 @@ runs:
         cd ../../..
 
     - name: Install Test Suite Dependencies
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       env:
         SUITE_INPUT: ${{ inputs.suite }}
         IS_PR: ${{ github.event_name == 'pull_request' }}
@@ -516,7 +516,7 @@ runs:
         cd ..
 
     - name: Verify Environment Configuration
-      shell: bash -eo pipefail {0}
+      shell: bash -xeo pipefail {0}
       run: |
         # Set test environment
         if [ "${XPU_ONEAPI_PATH}" != "" ];then
@@ -527,7 +527,7 @@ runs:
         echo "=== Final Environment Verification ==="
 
         echo -e "\n=== Environment Variables ==="
-        printenv | grep -E '^(PYTHONPATH|TORCH|PATH|HOME)' | sort
+        printenv | sort
 
         echo -e "\n=== Pytorch Configuration ==="
         python -c "import torch; print(torch.__config__.show())"
@@ -539,7 +539,7 @@ runs:
 
         echo -e "\n=== Collect Environment Info ==="
         if [ -f "pytorch/torch/utils/collect_env.py" ]; then
-          python pytorch/torch/utils/collect_env.py | head -50
+          python pytorch/torch/utils/collect_env.py
         else
           echo "collect_env.py not found"
         fi

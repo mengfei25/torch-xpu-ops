@@ -109,12 +109,13 @@ jobs:
         --cap-add=SYS_PTRACE
         --shm-size=8g
         -u ${{ needs.runner.outputs.user_id }}:${{ needs.runner.outputs.render_id }}
+      env:
+        NUMACTL_ARGS: ${{ needs.runner.outputs.numactl_args }}
+        ZE_AFFINITY_MASK: ${{ needs.runner.outputs.ze_affinity_mask }}
+        AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
+        PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
     env:
-      NUMACTL_ARGS: ${{ needs.runner.outputs.numactl_args }}
-      ZE_AFFINITY_MASK: ${{ needs.runner.outputs.ze_affinity_mask }}
       MODEL_ONLY_NAME: ${{ inputs.model }}
-      AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
-      PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
       WORKSPACE: ${{ github.workspace }}
       TEST_TYPE: ${{ inputs.test_type }}
       SUITE_INPUT: ${{ inputs.suite }}
