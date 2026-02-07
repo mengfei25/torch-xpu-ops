@@ -350,6 +350,7 @@ jobs:
           fi
 
           echo "Downloaded logs structure:"
+          find "${DOWNLOAD_DIR}" -d  -maxdepth 2 || true
           find "${DOWNLOAD_DIR}" -type f -name "*.log" -o -name "*.csv" -o -name "*.xml" | \
             head -20 | while read -r file; do
               echo "  $(basename "${file}")"
