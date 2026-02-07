@@ -168,7 +168,7 @@ runs:
         get_total_xpu_count() {
           local drm_count
           if [ -d /sys/class/drm ]; then
-            drm_count=$(find /sys/class/drm -name 'card*' -path '*/device/enable' | wc -l)
+            drm_count=$(ls /sys/class/drm/card*/device/enable | wc -l)
             # Cap at 8 for practical purposes
             if [ "${drm_count}" -gt 8 ]; then
               echo "8"
