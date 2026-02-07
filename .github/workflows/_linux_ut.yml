@@ -356,19 +356,10 @@ jobs:
               echo "  $(basename "${file}")"
             done
 
-          # Find the most recent log directory
-          LATEST_DIR=$(find "${DOWNLOAD_DIR}" -type d -name "Inductor-XPU-UT-Data-*-${UT_NAME}-*" | \
-            sort -V | tail -n 1)
-
-          if [ -z "${LATEST_DIR}" ]; then
-            echo "Error: No log directory found for UT: ${UT_NAME}"
-            exit 1
-          fi
-
-          echo "Processing logs from: ${LATEST_DIR}"
+          echo "Processing logs from: ${DOWNLOAD_DIR}"
 
           # Copy logs to processed directory
-          cp -r "${LATEST_DIR}"/* "${PROCESSED_DIR}/" 2>/dev/null || {
+          cp -r "${DOWNLOAD_DIR}"/* "${PROCESSED_DIR}/" 2>/dev/null || {
             echo "Warning: Failed to copy some log files"
           }
 
