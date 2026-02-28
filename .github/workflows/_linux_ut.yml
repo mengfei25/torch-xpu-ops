@@ -106,7 +106,6 @@ jobs:
         -e ZE_AFFINITY_MASK=${{ needs.runner.outputs.ze_affinity_mask }}
       env:
         AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
-        PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
         WORKSPACE: ${{ github.workspace }}
         ZE_AFFINITY_MASK: ${{ needs.runner.outputs.ze_affinity_mask }}
         PYTEST_ADDOPTS: >-
@@ -204,7 +203,6 @@ jobs:
     runs-on: ${{ needs.runner.outputs.runner_id }}
     env:
       AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
-      PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
       WORKSPACE: ${{ github.workspace }}
       ZE_AFFINITY_MASK: ${{ needs.runner.outputs.ze_affinity_mask }}
       PYTEST_ADDOPTS: >-

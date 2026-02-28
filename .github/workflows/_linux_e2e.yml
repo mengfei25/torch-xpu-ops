@@ -113,7 +113,6 @@ jobs:
         NUMACTL_ARGS: ${{ needs.runner.outputs.numactl_args }}
         ZE_AFFINITY_MASK: ${{ needs.runner.outputs.ze_affinity_mask }}
         AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
-        PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
     env:
       MODEL_ONLY_NAME: ${{ inputs.model }}
       WORKSPACE: ${{ github.workspace }}

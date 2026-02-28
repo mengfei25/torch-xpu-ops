@@ -48,7 +48,6 @@ env:
   DOCKER_REGISTRY_AUTH_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
   WORKSPACE: ${{ github.workspace }}
   AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
-  PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
   PATH: /tmp/xpu-tool/myvenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 jobs:
