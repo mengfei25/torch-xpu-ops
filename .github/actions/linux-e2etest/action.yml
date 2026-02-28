@@ -34,9 +34,6 @@ runs:
         pip list --format=columns || echo "pip list failed, continuing..."
 
     - name: Execute E2E Tests
-      env:
-        NUMACTL_ARGS: ${{ steps.get-runner-infos.outputs.numactl_args }}
-        ZE_AFFINITY_MASK: ${{ steps.get-runner-infos.outputs.ZE_AFFINITY_MASK }}
       shell: bash -eo pipefail {0}
       run: |
         # Set test environment
@@ -46,8 +43,8 @@ runs:
           }
         fi
         # Configuration and setup
-        SCRIPT_DIR="${{ github.workspace }}/.github/scripts"
-        TARGET_DIR="${{ github.workspace }}/pytorch"
+        SCRIPT_DIR="${GITHUB_WORKSPACE}/.github/scripts"
+        TARGET_DIR="${GITHUB_WORKSPACE}/pytorch"
 
         echo "=== Test Configuration ==="
         echo "Test Suite(s): ${{ inputs.suite }}"
@@ -313,7 +310,7 @@ runs:
     - name: Generate Test Summary
       shell: bash -eo pipefail {0}
       run: |
-        cd "${{ github.workspace }}/pytorch" || exit 1
+        cd "${GITHUB_WORKSPACE}/pytorch" || exit 1
 
         echo "=== Generating Test Summary ==="
 
@@ -353,7 +350,7 @@ runs:
           }
 
           # Copy and run summary script
-          SUMMARY_SCRIPT="${{ github.workspace }}/.github/scripts/inductor_summary.py"
+          SUMMARY_SCRIPT="${GITHUB_WORKSPACE}/.github/scripts/inductor_summary.py"
 
           if [ -f "${SUMMARY_SCRIPT}" ]; then
             cp "${SUMMARY_SCRIPT}" ./
