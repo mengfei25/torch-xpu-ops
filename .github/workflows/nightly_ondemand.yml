@@ -58,7 +58,6 @@ run-name: ${{ (contains(github.event.schedule, '13') && 'Nightly') || (contains(
 jobs:
   Conditions-Filter:
     name: conditions-filter
-    if: ${{ github.repository_owner == 'intel' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     outputs:
