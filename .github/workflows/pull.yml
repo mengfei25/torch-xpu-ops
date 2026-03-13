@@ -6,9 +6,9 @@ on:
       - opened
       - synchronize
       - reopened
-      - converted_to_draft
       - ready_for_review
       - labeled
+      - unlabeled
     branches:
       - main
       - release/*
@@ -38,7 +38,10 @@ jobs:
           enable_clang: true
 
   conditions-filter:
-    if: ${{ github.repository_owner == 'intel' && github.event.pull_request.draft == false }}
+    if: >-
+      ${{ github.repository_owner == 'intel' && github.event.pull_request.draft == false 
+      && !contains(github.event.pull_request.labels.*.name, 'disable_all') 
+      && !contains(github.event.pull_request.labels.*.name, 'disable_win') }}
     name: Conditions Filter
     runs-on: ubuntu-24.04
     timeout-minutes: 10
