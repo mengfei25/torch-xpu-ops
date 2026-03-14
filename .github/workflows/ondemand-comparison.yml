@@ -203,7 +203,7 @@ jobs:
           python .github/scripts/compare-ut.py --input results/ --output ut_comparison.csv --markdown --markdown-output ut_comparison.md
           cat ut_comparison.md >> "${GITHUB_STEP_SUMMARY}"
           # E2E
-          python .github/scripts/compare-e2e.py results/target results/baseline e2e_comparison.csv --markdown e2e_comparison.md
+          python .github/scripts/compare-e2e.py -t results/target -b results/baseline -o e2e_comparison.csv -m e2e_comparison.md
           cat e2e_comparison.md >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload Tests Summary
