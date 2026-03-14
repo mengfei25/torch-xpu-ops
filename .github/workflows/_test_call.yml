@@ -284,6 +284,7 @@ jobs:
     name: Linux Build
     needs: [parse-test-inputs]
     secrets: inherit
+    permissions: write-all
     uses: ./.github/workflows/_linux_build.yml
     with:
       runner: ${{ inputs.runner }}

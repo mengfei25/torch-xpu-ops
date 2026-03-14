@@ -94,6 +94,8 @@ jobs:
     needs: runner
     if: ${{ !contains(inputs.pytorch, '_wheel') && inputs.should_build == 'true' }}
     runs-on: ${{ needs.runner.outputs.runner_id }}
+    permissions:
+      checks: write
     container:
       image: ${{ inputs.docker_image_name }}
       volumes:
