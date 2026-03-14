@@ -164,18 +164,9 @@ jobs:
           "${python_path}" -m venv /tmp/xpu-tool/myvenv
           source /tmp/xpu-tool/myvenv/bin/activate
           echo "Python version: $(python -V 2>&1)"
-          pip install -U pip wheel setuptools
+          pip install -U pip wheel "setuptools<=81"
 
-<<<<<<< HEAD
-          # Upgrade Python tools
-          pip install -U pip wheel "setuptools<=81" --quiet || {
-            echo "Warning: Failed to upgrade Python tools"
-          }
-
-      - name: Checkout torch-xpu-ops repository
-=======
       - name: Checkout torch-xpu-ops (again for build job)
->>>>>>> 02ab5ff (modify build)
         uses: actions/checkout@v4
         with:
           path: torch-xpu-ops
