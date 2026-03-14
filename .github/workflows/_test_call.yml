@@ -165,7 +165,7 @@ jobs:
 
           # Parse UT list
           if [ "${{ inputs.test_role }}" != "default" ];then
-            UT_INPUT="op_regression"
+            UT_INPUT="op_p0"
           else
             UT_INPUT="${{ inputs.ut }}"
           fi
@@ -235,7 +235,7 @@ jobs:
 
           # Parse suite list
           if [ "${{ inputs.test_role }}" != "default" ];then
-            SUITE_INPUT='huggingface'
+            SUITE_INPUT='huggingface,timm_models,torchbench'
           else
             SUITE_INPUT="${{ inputs.suite }}"
           fi

@@ -39,8 +39,8 @@ jobs:
 
   conditions-filter:
     if: >-
-      ${{ github.repository_owner == 'intel' && github.event.pull_request.draft == false 
-      && !contains(github.event.pull_request.labels.*.name, 'disable_all') 
+      ${{ github.repository_owner == 'intel' && github.event.pull_request.draft == false
+      && !contains(github.event.pull_request.labels.*.name, 'disable_all')
       && !contains(github.event.pull_request.labels.*.name, 'disable_win') }}
     name: Conditions Filter
     runs-on: ubuntu-24.04
