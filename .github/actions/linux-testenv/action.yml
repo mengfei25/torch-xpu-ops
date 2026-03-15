@@ -170,9 +170,9 @@ runs:
             ;;
           *)
             echo "Installing from local wheel"
-            local_wheel_files=$(find ./wheels -type d -name "*.whl" 2>/dev/null | sort -V | tail -n 1)
+            local_wheel_files="$(find ./wheels -type f -name "*.whl" 2>/dev/null)"
 
-            if [ -n "${local_wheel_files}" ] && [ -f "${local_wheel_files}" ]; then
+            if [ -n "${local_wheel_files}" ]; then
               echo "Found wheels: ${local_wheel_files}"
               pip install --force-reinstall ${local_wheel_files}
             else
