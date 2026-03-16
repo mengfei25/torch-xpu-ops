@@ -52,6 +52,7 @@ on:
           - basic: op_regression, op_transformers, op_extended, op_regression_dev1
           - op_regression, op_transformers, op_extended, op_regression_dev1
           - op_ut, skipped_ut, torch_xpu, xpu_profiling, xpu_distributed
+          - op_p0 (for acceptance tests)
           - microbench, windows (special flags)
       suite:
         type: string
@@ -165,7 +166,7 @@ jobs:
 
           # Parse UT list
           if [ "${{ inputs.test_role }}" != "default" ];then
-            UT_INPUT="op_regression"
+            UT_INPUT="op_p0"
           else
             UT_INPUT="${{ inputs.ut }}"
           fi
@@ -235,7 +236,7 @@ jobs:
 
           # Parse suite list
           if [ "${{ inputs.test_role }}" != "default" ];then
-            SUITE_INPUT='huggingface'
+            SUITE_INPUT='huggingface,timm_models,torchbench'
           else
             SUITE_INPUT="${{ inputs.suite }}"
           fi
