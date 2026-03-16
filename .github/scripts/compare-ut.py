@@ -1044,10 +1044,10 @@ class ResultAnalyzer:
     def generate_markdown_summary(self, df: pd.DataFrame, new_failures_df: pd.DataFrame = None, new_passes_df: pd.DataFrame = None) -> str:
         """
         Generate a comprehensive markdown summary for GitHub issues.
-        Includes both new failures and new passes.
+        Includes only sections that have actual data (empty sections are omitted).
         """
         if df.empty:
-            return "# Test Comparison Report\n\nNo test data available."
+            return "\n\n# Unit Test Results\n\nNo test data available."
 
         # Get summary stats
         stats_df = self.generate_summary_stats(df)
@@ -1060,13 +1060,7 @@ class ResultAnalyzer:
         md = []
 
         # Header
-        md.append("# Test Comparison Report\n")
-        md.append(f"**Generated:** {timestamp}\n")
-
-        # GitHub Issues Summary (if available)
-        issue_summary = self.generate_issue_summary_section()
-        if issue_summary:
-            md.append(issue_summary)
+        md.append("\n\n# Unit Test Results - Summary\n")
 
         # Overall summary section
         md.append("## 📊 Overall Summary\n")
@@ -1098,19 +1092,27 @@ class ResultAnalyzer:
             md.append(f"- **Test Count Delta:** {total_delta:+.0f} tests")
             md.append(f"- **Pass Rate Delta:** {delta_emoji} {pass_rate_delta:+.2f}%\n")
 
-        # Summary of changes
+        # Summary of changes (only if there are any)
         total_new_failures = len(new_failures_df) if new_failures_df is not None else 0
         total_new_passes = len(new_passes_df) if new_passes_df is not None else 0
 
-        md.append("### 📊 Change Summary\n")
-        md.append(f"- **New Failures:** {total_new_failures} tests")
-        md.append(f"- **New Passes:** {total_new_passes} tests")
-        md.append(f"- **Net Change:** {total_new_passes - total_new_failures:+.0f} tests\n")
+        if total_new_failures > 0 or total_new_passes > 0:
+            md.append("### 📊 Change Summary\n")
+            md.append(f"- **New Failures:** {total_new_failures} tests")
+            md.append(f"- **New Passes:** {total_new_passes} tests")
+            md.append(f"- **Net Change:** {total_new_passes - total_new_failures:+.0f} tests\n")
 
-        # New Failures Section
-        md.append("## 🚨 New Failures on Target\n")
+        md.append("\n\n# Unit Test Results - Details\n")
+        md.append(f"**Generated:** {timestamp}\n")
 
+        # GitHub Issues Summary (if available)
+        issue_summary = self.generate_issue_summary_section()
+        if issue_summary:
+            md.append(issue_summary)
+
+        # New Failures Section – only if there are any
         if new_failures_df is not None and not new_failures_df.empty:
+            md.append("## 🚨 New Failures on Target\n")
             md.append(f"Found **{len(new_failures_df)}** tests that passed on Baseline but failed on Target:\n")
 
             # Group by reason for better organization
@@ -1136,7 +1138,6 @@ class ResultAnalyzer:
                     issue_ids = issue.get('issue_ids', '')
                     issue_display = ""
                     if issue_ids and self.issue_tracker and self.issue_tracker.repo_name:
-                        # Format as links if we have issue IDs and repo
                         ids = issue_ids.split(',')
                         issue_links = [f"[#{id}](https://github.com/{self.issue_tracker.repo_name}/issues/{id})" for id in ids]
                         issue_display = ', '.join(issue_links)
@@ -1155,13 +1156,10 @@ class ResultAnalyzer:
                     md.append(f"| ... | ... | ... | ... | *{len(reason_issues) - 10} more issues* |")
 
                 md.append("")
-        else:
-            md.append("✅ **No new failures found!** All tests that passed on Baseline also pass on Target.\n")
 
-        # New Passes Section
-        md.append("## ✨ New Passes on Target\n")
-
+        # New Passes Section – only if there are any
         if new_passes_df is not None and not new_passes_df.empty:
+            md.append("## ✨ New Passes on Target\n")
             md.append(f"Found **{len(new_passes_df)}** tests that now pass on Target (were failing/skipped on Baseline):\n")
 
             # Group by reason for better organization
@@ -1199,10 +1197,8 @@ class ResultAnalyzer:
                     md.append(f"| ... | ... | ... | *{len(reason_passes) - 10} more passes* |")
 
                 md.append("")
-        else:
-            md.append("No new passes detected.\n")
 
-        # File-level summary
+        # File-level summary (always included if not empty, as it provides context)
         md.append("## 📁 File-Level Summary\n")
 
         if not file_summary_df.empty:
@@ -1276,75 +1272,37 @@ class ResultAnalyzer:
         else:
             md.append("No file-level summary available.\n")
 
-        # Top failures section
-        md.append("## 🔥 Top Failures by File\n")
-
+        # Top failures section – only if there are failures on target
+        target_failures_exist = False
         if not file_summary_df.empty:
+            target_failures_total = (file_summary_df['Target Failed'].astype(int) + file_summary_df['Target Error'].astype(int)).sum()
+            target_failures_exist = target_failures_total > 0
+
+        if target_failures_exist:
+            md.append("## 🔥 Top Failures by File\n")
             # Find files with most failures on target
             target_failures = file_summary_df.nlargest(5, 'Target Failed')[['Test File', 'Target Failed', 'Target Error']]
 
-            if not target_failures.empty and (target_failures['Target Failed'].sum() > 0 or target_failures['Target Error'].sum() > 0):
-                md.append("| Test File | Failed | Error |")
-                md.append("|-----------|--------|-------|")
+            md.append("| Test File | Failed | Error |")
+            md.append("|-----------|--------|-------|")
 
-                for _, row in target_failures.iterrows():
-                    if row['Target Failed'] > 0 or row['Target Error'] > 0:
-                        md.append(f"| `{row['Test File']}` | {row['Target Failed']} | {row['Target Error']} |")
-                md.append("")
-            else:
-                md.append("No failures found on Target.\n")
-        else:
-            md.append("No failure data available.\n")
+            for _, row in target_failures.iterrows():
+                if row['Target Failed'] > 0 or row['Target Error'] > 0:
+                    md.append(f"| `{row['Test File']}` | {row['Target Failed']} | {row['Target Error']} |")
+            md.append("")
 
-        # Top improvements section
-        md.append("## 📈 Top Improvements by File\n")
+        # Top improvements section – only if there are new passes
+        if new_passes_df is not None and not new_passes_df.empty:
+            md.append("## 📈 Top Improvements by File\n")
+            new_passes_by_file = new_passes_df.groupby('testfile_target').size().reset_index(name='new_passes_count')
+            new_passes_by_file = new_passes_by_file.sort_values('new_passes_count', ascending=False).head(5)
 
-        if not file_summary_df.empty and new_passes_df is not None and not new_passes_df.empty:
-            # Find files with most new passes
-            if not new_passes_df.empty:
-                new_passes_by_file = new_passes_df.groupby('testfile_target').size().reset_index(name='new_passes_count')
-                new_passes_by_file = new_passes_by_file.sort_values('new_passes_count', ascending=False).head(5)
+            md.append("| Test File | New Passes |")
+            md.append("|-----------|------------|")
 
-                md.append("| Test File | New Passes |")
-                md.append("|-----------|------------|")
-
-                for _, row in new_passes_by_file.iterrows():
-                    md.append(f"| `{row['testfile_target']}` | {row['new_passes_count']} |")
-                md.append("")
-        else:
-            md.append("No significant improvements detected.\n")
-
-        # Recommendations
-        md.append("## 💡 Recommendations\n")
-
-        if new_failures_df is not None and not new_failures_df.empty:
-            md.append("Based on the analysis, here are some recommendations:\n")
-
-            md.append("1. **🔥 Focus on new failures first** - The {} new failures should be investigated urgently".format(len(new_failures_df)))
-            md.append("2. **Check error messages** - Review the error messages for patterns in the new failures")
-            md.append("3. **Verify test environment** - Ensure Target environment is properly configured")
-            md.append("4. **Review recent changes** - Changes between Baseline and Target may have introduced these issues")
-
-            # Add recommendation based on baseline failures
-            if not file_summary_df.empty:
-                high_failure_files = file_summary_df[
-                    (file_summary_df['Baseline Failed'].astype(int) + file_summary_df['Baseline Error'].astype(int)) > 10
-                ]
-                if not high_failure_files.empty:
-                    md.append(f"5. **Address baseline failures** - {len(high_failure_files)} files have >10 failures in baseline")
-
-            if new_passes_df is not None and not new_passes_df.empty:
-                md.append(f"6. **✨ Celebrate improvements** - {len(new_passes_df)} tests are now passing on Target!")
-        else:
-            md.append("✅ All tests are passing! No immediate action required.\n")
-
-            if new_passes_df is not None and not new_passes_df.empty:
-                md.append(f"✨ **Note:** {len(new_passes_df)} tests that were previously failing are now passing on Target!\n")
-
-        # Footer with instructions
-        md.append("---\n")
-        md.append("*This report was automatically generated by the Test Comparison Tool.*")
-        md.append("*For more details, check the attached Excel/CSV files.*")
+            for _, row in new_passes_by_file.iterrows():
+                md.append(f"| `{row['testfile_target']}` | {row['new_passes_count']} |")
+            md.append("")
 
         return "\n".join(md)
 
@@ -1456,31 +1414,52 @@ class ReportExporter:
         logger.info(f"Exported comparison results to {output_path}")
 
     def export_markdown(self, analyzer: ResultAnalyzer, output_path: Path) -> None:
-        """Export results to Markdown format for GitHub issues."""
-        # Get unique test cases
+        """Export results to Markdown format, split into summary and details files."""
         unique_df = analyzer.deduplicate_by_priority()
-
         if unique_df.empty:
             logger.warning("No data to export to markdown")
             return
 
-        # Get changes for the markdown report
         baseline_df, target_df = analyzer.split_by_device(unique_df)
         new_failures_df = None
         new_passes_df = None
-
         if not baseline_df.empty and not target_df.empty:
             merged_df = analyzer.merge_results(baseline_df, target_df)
             new_failures_df, new_passes_df = analyzer.find_target_changes(merged_df)
 
-        # Generate markdown content
-        markdown_content = analyzer.generate_markdown_summary(unique_df, new_failures_df, new_passes_df)
+        full_content = analyzer.generate_markdown_summary(unique_df, new_failures_df, new_passes_df)
 
-        # Write to file
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
+        # Split the content into summary and details parts
+        summary_part, details_part = self._split_markdown_summary(full_content)
 
-        logger.info(f"Exported markdown report to {output_path}")
+        # Determine output file names
+        base = output_path.parent / output_path.stem
+        summary_path = base.with_name(base.name + ".summary.md")
+        details_path = base.with_name(base.name + ".details.md")
+
+        # Write the two files
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            f.write(summary_part)
+        with open(details_path, 'w', encoding='utf-8') as f:
+            f.write(details_part)
+
+        logger.info(f"Exported summary markdown to {summary_path}")
+        logger.info(f"Exported details markdown to {details_path}")
+
+    def _split_markdown_summary(self, content: str) -> Tuple[str, str]:
+        """Split markdown content into summary (up to next ## heading after Overall Summary) and details."""
+        lines = content.splitlines()
+        summary_end_idx = len(lines)
+
+        for i, line in enumerate(lines):
+            if line.startswith("# Unit Test Results - Details"):
+                summary_end_idx = i - 1
+                break
+
+        if summary_end_idx is None:
+            # Fallback: whole content is summary
+            return content, ""
+        return "\n".join(lines[:summary_end_idx]), "\n".join(lines[summary_end_idx:])
 
     def _generate_case_issue_df(self, analyzer: ResultAnalyzer) -> pd.DataFrame:
         """Create a DataFrame from test_to_issues mapping."""
