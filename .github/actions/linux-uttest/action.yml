@@ -40,6 +40,7 @@ runs:
         else
           echo "Warning: conftest.py not found at ${CONFTEST_SRC}"
         fi
+        printenv | sort |tee -a ${GITHUB_WORKSPACE}/test_info.log
 
     - name: Run op_regression tests
       shell: timeout 3600 bash -eo pipefail {0}
