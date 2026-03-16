@@ -2,7 +2,7 @@
 # Enhanced test runner for PyTorch XPU tests
 # Usage: ./script.sh [group1 group2 ...]
 
-set +e  # not exit on error
+set +e -x # not exit on error
 
 # -------------------- Configuration --------------------
 # PYTORCH_ROOT_DIR must be set in the environment
