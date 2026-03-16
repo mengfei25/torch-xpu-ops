@@ -35,6 +35,7 @@ runs:
         echo "=== PIP Environment ==="
         echo "PIP executable: $(which pip)"
         pip list --format=columns || echo "pip list failed, continuing..."
+        printenv | sort |tee -a ${GITHUB_WORKSPACE}/test_info.log
 
     - name: Execute E2E Tests
       shell: bash -eo pipefail {0}

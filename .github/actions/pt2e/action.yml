@@ -34,6 +34,8 @@ runs:
         echo "Scenarios: ${{ inputs.scenario }}"
         echo "PyTorch reference: ${{ inputs.pytorch }}"
 
+        printenv | sort |tee -a ${GITHUB_WORKSPACE}/test_info.log
+
     - name: Prepare ImageNet dataset
       shell: bash -eo pipefail {0}
       run: |
