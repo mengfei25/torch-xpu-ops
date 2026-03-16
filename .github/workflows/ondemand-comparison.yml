@@ -200,9 +200,9 @@ jobs:
           echo "Baseline: ${{ inputs.baseline_version }}"
           find results
           # UT
-          python .github/scripts/compare-ut.py --input results/ --output ut_comparison.csv --markdown --markdown-output ut_comparison.md
+          python .github/scripts/compare-ut.py --input results/ --output ut_comparison.xlsx --markdown --markdown-output ut_comparison.md
           # E2E
-          python .github/scripts/compare-e2e.py -t results/target -b results/baseline -o e2e_comparison.csv -m e2e_comparison.md
+          python .github/scripts/compare-e2e.py -t results/target -b results/baseline -o e2e_comparison.xlsx -m e2e_comparison.md
           # Summary Markdown
           cat e2e_comparison.summary.md >> "${GITHUB_STEP_SUMMARY}"
           cat ut_comparison.summary.md >> "${GITHUB_STEP_SUMMARY}"
