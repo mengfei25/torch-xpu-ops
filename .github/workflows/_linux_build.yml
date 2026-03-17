@@ -80,7 +80,7 @@ jobs:
           echo "Workspace cleaned"
 
       - name: Checkout torch-xpu-ops
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
           path: torch-xpu-ops
@@ -167,7 +167,7 @@ jobs:
           pip install -U pip wheel "setuptools<=81"
 
       - name: Checkout torch-xpu-ops (again for build job)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: torch-xpu-ops
           fetch-depth: 1
@@ -396,7 +396,7 @@ jobs:
       # --------------------- Artifact Upload ---------------------
       - name: Upload Build Artifacts (Wheels + Logs)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Torch-XPU-Wheel-${{ inputs.test_role }}-${{ github.event.pull_request.number || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |

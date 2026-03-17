@@ -75,7 +75,7 @@ jobs:
       ze_affinity_mask: ${{ steps.runner-info.outputs.ZE_AFFINITY_MASK }}
     steps:
       - name: Checkout torch-xpu-ops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -114,7 +114,7 @@ jobs:
           ${{ needs.runner.outputs.pytest_extra_args }}
     steps:
       - name: Checkout torch-xpu-ops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -163,7 +163,7 @@ jobs:
 
       - name: Upload UT Logs
         if: ${{ !cancelled() && steps.upload-logs.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Inductor-XPU-UT-Data-${{ inputs.test_role }}-${{ github.event.pull_request.number || github.sha }}-${{ inputs.ut }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ github.workspace }}/ut_log
@@ -198,7 +198,7 @@ jobs:
         --max-worker-restart 10000
     steps:
       - name: Checkout torch-xpu-ops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -247,7 +247,7 @@ jobs:
 
       - name: Upload UT Logs (Baremetal)
         if: ${{ !cancelled() && steps.upload-logs-baremetal.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Inductor-XPU-UT-Data-${{ inputs.test_role }}-${{ github.event.pull_request.number || github.sha }}-${{ inputs.ut }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ github.workspace }}/ut_log

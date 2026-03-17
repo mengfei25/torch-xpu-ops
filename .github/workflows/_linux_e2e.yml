@@ -84,7 +84,7 @@ jobs:
       ze_affinity_mask: ${{ steps.runner-info.outputs.ZE_AFFINITY_MASK }}
     steps:
       - name: Checkout torch-xpu-ops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -124,7 +124,7 @@ jobs:
       SCENARIO_INPUT: ${{ inputs.scenario }}
     steps:
       - name: Checkout torch-xpu-ops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -445,7 +445,7 @@ jobs:
 
       - name: Upload Inductor XPU E2E Test Artifacts
         if: ${{ !cancelled() && steps.collect-artifacts.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Inductor-${{ inputs.test_type }}-LTS2-XPU-E2E-Data-${{ github.event.pull_request.number || github.sha }}-${{ inputs.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ github.workspace }}/upload_files
