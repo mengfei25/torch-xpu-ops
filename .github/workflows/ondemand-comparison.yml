@@ -71,7 +71,7 @@ jobs:
       runner_id: ${{ steps.runner-info.outputs.runner_id }}
     steps:
       - name: Checkout torch-xpu-ops repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
@@ -170,17 +170,17 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download Target Logs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: 'Inductor-*target*'
           path: ${{ github.workspace }}/results/target
           merge-multiple: true
 
       - name: Download Baseline Logs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: 'Inductor-*baseline*'
           path: ${{ github.workspace }}/results/baseline
@@ -213,7 +213,7 @@ jobs:
 
       - name: Upload Tests Summary
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.component }}-test-summary
           path: |
