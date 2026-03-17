@@ -212,9 +212,9 @@ class Comparison:
     message_target: str = ""
 
     # GitHub issue fields
-    issue_ids: str = ""  # Comma-separated issue IDs
-    issue_labels: str = ""  # Comma-separated labels
-    issue_statuses: str = ""  # Comma-separated statuses (open/closed)
+    issue_ids: str = ""  # |-separated issue IDs
+    issue_labels: str = ""  # |-separated labels
+    issue_statuses: str = ""  # |-separated statuses (open/closed)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -427,9 +427,9 @@ class GitHubIssueTracker:
                 all_labels = set()
                 for issue in issues:
                     all_labels.update(issue['labels'])
-                enhanced_df.at[idx, 'issue_ids'] = ','.join(issue_ids)
-                enhanced_df.at[idx, 'issue_labels'] = ','.join(sorted(all_labels))
-                enhanced_df.at[idx, 'issue_statuses'] = ','.join(issue_statuses)
+                enhanced_df.at[idx, 'issue_ids'] = '|'.join(issue_ids)
+                enhanced_df.at[idx, 'issue_labels'] = '|'.join(sorted(all_labels))
+                enhanced_df.at[idx, 'issue_statuses'] = '|'.join(issue_statuses)
 
         return enhanced_df
 
@@ -712,7 +712,7 @@ class TestDetailsExtractor:
     def process(self, input_paths: List[str], max_workers: int = None) -> bool:
         """Process all XML files in parallel."""
         if max_workers is None:
-            max_workers = max(1, os.cpu_count() - 2)
+            max_workers = int(max(1, os.cpu_count() / 2))
 
         # Find XML files
         xml_files = self.find_xml_files(input_paths)
@@ -1138,7 +1138,7 @@ class ResultAnalyzer:
                     issue_ids = issue.get('issue_ids', '')
                     issue_display = ""
                     if issue_ids and self.issue_tracker and self.issue_tracker.repo_name:
-                        ids = issue_ids.split(',')
+                        ids = issue_ids.split('|')
                         issue_links = [f"[#{id}](https://github.com/{self.issue_tracker.repo_name}/issues/{id})" for id in ids]
                         issue_display = ', '.join(issue_links)
                     elif issue_ids:
@@ -1185,7 +1185,7 @@ class ResultAnalyzer:
                     issue_ids = issue.get('issue_ids', '')
                     issue_display = ""
                     if issue_ids and self.issue_tracker and self.issue_tracker.repo_name:
-                        ids = issue_ids.split(',')
+                        ids = issue_ids.split('|')
                         issue_links = [f"[#{id}](https://github.com/{self.issue_tracker.repo_name}/issues/{id})" for id in ids]
                         issue_display = ', '.join(issue_links)
                     elif issue_ids:
@@ -1478,8 +1478,8 @@ class ReportExporter:
             issue_labels_list = [', '.join(issue.get('labels', [])) for issue in issues]
 
             # Combine multiple issues into readable strings
-            combined_ids = ', '.join(issue_ids)
-            combined_states = ', '.join(issue_states)
+            combined_ids = '| '.join(issue_ids)
+            combined_states = '| '.join(issue_states)
             combined_labels = ' | '.join(issue_labels_list)  # separate issues with a pipe
 
             # Build GitHub URLs if repo name is known
@@ -1537,7 +1537,7 @@ def main() -> int:
     parser.add_argument(
         "-w", "--workers",
         type=int,
-        help="Number of parallel workers (default: CPU count - 2)",
+        help="Number of parallel workers (default: CPU count / 2)",
     )
 
     parser.add_argument(
