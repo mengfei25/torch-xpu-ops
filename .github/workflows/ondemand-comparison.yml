@@ -166,6 +166,8 @@ jobs:
     name: Compare Results
     needs: [run-target-tests, run-baseline-tests]
     runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

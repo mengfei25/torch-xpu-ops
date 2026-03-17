@@ -224,7 +224,6 @@ class Comparison:
 # ============================================================================
 # GITHUB ISSUE TRACKER (using PyGithub)
 # ============================================================================
-# ... (previous code remains the same until GitHubIssueTracker)
 
 class GitHubIssueTracker:
     """Fetches and parses GitHub issues using PyGithub, with local caching."""
@@ -234,7 +233,8 @@ class GitHubIssueTracker:
 
     def __init__(self, repo: str = None, token: str = None, cache_path: str = None, pattern_matcher: Optional[FilePatternMatcher] = None):
         self.repo_name = repo or os.environ.get('GITHUB_REPOSITORY', '')
-        self.token = token or os.environ.get('GITHUB_TOKEN', '')
+        # Allow token from GH_TOKEN or GITHUB_TOKEN
+        self.token = token or os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN', '')
         self.cache_path = Path(cache_path) if cache_path else None
         self.github = None
         self.repository = None
@@ -846,7 +846,6 @@ class ResultAnalyzer:
 
         # Enhance with GitHub issue information if available
         if self.issue_tracker:
-            logger.info("Enhancing comparison with GitHub issue information")
             merged_df = self.issue_tracker.enhance_comparison(merged_df)
 
         return merged_df
@@ -1115,12 +1114,19 @@ class ResultAnalyzer:
             md.append("## 🚨 New Failures on Target\n")
             md.append(f"Found **{len(new_failures_df)}** tests that passed on Baseline but failed on Target:\n")
 
-            # Group by reason for better organization
-            for reason in new_failures_df['reason'].unique():
-                reason_issues = new_failures_df[new_failures_df['reason'] == reason]
-                reason_emoji = "❌" if "Failed" in reason else "💥" if "Error" in reason else "⏭️"
+            # Group by reason, merging "Failed on Target" and "Error on Target" into one section
+            # Create a mapping to combine reasons
+            reason_mapping = {
+                "Failed on Target": "New Failures (Failed/Error)",
+                "Error on Target": "New Failures (Failed/Error)",
+                "Skipped on Target": "Skipped on Target",
+            }
+            # We'll group by the mapped reason
+            new_failures_df = new_failures_df.copy()
+            new_failures_df['mapped_reason'] = new_failures_df['reason'].map(reason_mapping).fillna(new_failures_df['reason'])
 
-                md.append(f"### {reason_emoji} {reason} ({len(reason_issues)})\n")
+            for mapped_reason in new_failures_df['mapped_reason'].unique():
+                reason_issues = new_failures_df[new_failures_df['mapped_reason'] == mapped_reason]
 
                 # Create table for this category
                 md.append("| Test File | Test Name | Status | Issue IDs | Message |")
@@ -1162,12 +1168,17 @@ class ResultAnalyzer:
             md.append("## ✨ New Passes on Target\n")
             md.append(f"Found **{len(new_passes_df)}** tests that now pass on Target (were failing/skipped on Baseline):\n")
 
-            # Group by reason for better organization
-            for reason in new_passes_df['reason'].unique():
-                reason_passes = new_passes_df[new_passes_df['reason'] == reason]
-                reason_emoji = "✅"
+            # Group by reason, merging "Was failing on Baseline" and "Was error on Baseline" into one section
+            reason_mapping = {
+                "Was failing on Baseline": "New Passes (Failing/Error)",
+                "Was error on Baseline": "New Passes (Failing/Error)",
+                "Was skipped on Baseline": "Was skipped on Baseline",
+            }
+            new_passes_df = new_passes_df.copy()
+            new_passes_df['mapped_reason'] = new_passes_df['reason'].map(reason_mapping).fillna(new_passes_df['reason'])
 
-                md.append(f"### {reason_emoji} {reason} ({len(reason_passes)})\n")
+            for mapped_reason in new_passes_df['mapped_reason'].unique():
+                reason_passes = new_passes_df[new_passes_df['mapped_reason'] == mapped_reason]
 
                 # Create table for this category
                 md.append("| Test File | Test Name | Baseline Status | Issue IDs |")
@@ -1555,7 +1566,7 @@ def main() -> int:
 
     parser.add_argument(
         "--github-token",
-        help="GitHub personal access token (default: from GITHUB_TOKEN env)",
+        help="GitHub personal access token (default: from GH_TOKEN or GITHUB_TOKEN env)",
     )
 
     parser.add_argument(
@@ -1600,8 +1611,8 @@ def main() -> int:
 
         # Set default workers if not specified
         if args.workers is None:
-            args.workers = max(1, os.cpu_count() - 2)
-            logger.info(f"Using {args.workers} workers (CPU count - 2)")
+            args.workers = int(max(1, os.cpu_count() / 2))
+            logger.info(f"Using {args.workers} workers (CPU count / 2)")
 
         # Initialize extractor
         extractor = TestDetailsExtractor()
@@ -1621,7 +1632,8 @@ def main() -> int:
         # Initialize and fetch GitHub issues if not disabled
         if not args.no_github:
             github_repo = args.github_repo or os.environ.get('GITHUB_REPOSITORY')
-            github_token = args.github_token or os.environ.get('GITHUB_TOKEN')
+            # Allow GH_TOKEN as alternative to GITHUB_TOKEN
+            github_token = args.github_token or os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
 
             if github_repo:
                 logger.info(f"Initializing GitHub issue tracker for {github_repo}")
