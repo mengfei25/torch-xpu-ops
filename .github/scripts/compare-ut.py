@@ -1061,9 +1061,6 @@ class ResultAnalyzer:
         # Header
         md.append("\n\n# Unit Test Results - Summary\n")
 
-        # Overall summary section
-        md.append("## 📊 Overall Summary\n")
-
         if not stats_df.empty:
             # Create a nice table for overall stats
             md.append("| Device | Total | ✅ Passed | ❌ Failed | 💥 Error | ⏭️ Skipped | ⚠️ XFAIL | 📈 Pass Rate |")
@@ -1077,26 +1074,11 @@ class ResultAnalyzer:
                 )
             md.append("")
 
-        # Comparison metrics
-        if len(stats_df) == 2:
-            baseline_row = stats_df[stats_df['Device'] == 'Baseline'].iloc[0]
-            target_row = stats_df[stats_df['Device'] == 'Target'].iloc[0]
-
-            total_delta = target_row['Total'] - baseline_row['Total']
-            pass_rate_delta = float(target_row['Pass Rate'].rstrip('%')) - float(baseline_row['Pass Rate'].rstrip('%'))
-
-            delta_emoji = "✅" if pass_rate_delta >= 0 else "❌"
-
-            md.append("### 🔄 Comparison Metrics\n")
-            md.append(f"- **Test Count Delta:** {total_delta:+.0f} tests")
-            md.append(f"- **Pass Rate Delta:** {delta_emoji} {pass_rate_delta:+.2f}%\n")
-
         # Summary of changes (only if there are any)
         total_new_failures = len(new_failures_df) if new_failures_df is not None else 0
         total_new_passes = len(new_passes_df) if new_passes_df is not None else 0
 
         if total_new_failures > 0 or total_new_passes > 0:
-            md.append("### 📊 Change Summary\n")
             md.append(f"- **New Failures:** {total_new_failures} tests")
             md.append(f"- **New Passes:** {total_new_passes} tests")
             md.append(f"- **Net Change:** {total_new_passes - total_new_failures:+.0f} tests\n")
