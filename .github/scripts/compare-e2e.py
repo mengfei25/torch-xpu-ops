@@ -815,7 +815,7 @@ Examples:
 
     # Generate markdown files if requested
     if args.markdown:
-        md_base = args.markdown  # may include path, no extension needed
+        md_base = os.path.splitext(args.markdown)[0]  # remove any extension
         summary_file = md_base + ".summary.md"
         details_file = md_base + ".details.md"
         write_summary_markdown(combined_summary, args.threshold, summary_file)
