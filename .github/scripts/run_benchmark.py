@@ -6,6 +6,7 @@ PyTorch Dynamo benchmark runner - unified script with automatic result aggregati
 import argparse
 import csv
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -173,6 +174,58 @@ def find_uv(workspace: Path) -> str:
         raise RuntimeError("uv installation failed")
     logger.info(f"uv installed to {uv_exe}")
     return str(uv_exe)
+
+
+def parse_benchmark_entries(path: Path):
+    """
+    Generator that yields (suite, dtype, mode, model, result) for each valid row in the benchmark file.
+    Handles both old (three-column) and new (five-column with optional header) formats.
+    """
+    if not path.exists():
+        return
+    with open(path) as f:
+        lines = f.readlines()
+
+    if not lines:
+        return
+
+    # Check for header (first line starting with "suite" case-insensitive)
+    header_skipped = False
+    first_line = lines[0].strip()
+    if first_line.lower().startswith("suite"):
+        header_skipped = True
+        lines = lines[1:]
+
+    for line_num, line in enumerate(lines, start=2 if header_skipped else 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        # New format: 5 columns
+        if len(parts) == 5:
+            suite, dtype, mode, model, result = parts
+            yield suite, dtype, mode, model, result
+        # Old format: at least 3 columns
+        elif len(parts) >= 3:
+            suite_dt_mode, model, result = parts[0], parts[1], parts[2]
+            # Parse suite_dt_mode (e.g., "torchbench_float32_inference")
+            for suite in ALL_SUITES:
+                if suite_dt_mode.startswith(suite + "_"):
+                    remainder = suite_dt_mode[len(suite) + 1 :]
+                    dtype_mode = remainder.rsplit("_", 1)
+                    if len(dtype_mode) != 2:
+                        logger.warning(f"Line {line_num}: invalid suite_dt_mode format '{suite_dt_mode}'")
+                        break
+                    dtype, mode = dtype_mode
+                    if mode not in ALL_MODES:
+                        logger.warning(f"Line {line_num}: unknown mode '{mode}'")
+                        break
+                    yield suite, dtype, mode, model, result
+                    break
+            else:
+                logger.warning(f"Line {line_num}: unknown suite in '{suite_dt_mode}'")
+        else:
+            logger.warning(f"Line {line_num}: skipping line with {len(parts)} columns")
 
 
 # ----------------------------------------------------------------------
@@ -439,51 +492,15 @@ class BenchmarkRunner:
         return all_list if value == "all" else [value]
 
     def _parse_benchmark_file(self, path: Path) -> List[BenchmarkSpec]:
-        """Parse a tab-separated file: suite_dt_mode  model  value."""
-        if not path.exists():
-            logger.error(f"Benchmark file not found: {path}")
-            sys.exit(1)
-
         specs = []
-        with open(path) as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                parts = line.split()
-                if len(parts) < 3:
-                    logger.warning(f"Line {line_num}: skipping (need 3 columns)")
-                    continue
-                suite_dt_mode, model, val = parts[0], parts[1], parts[2]
-                # Determine scenario from val (numeric -> performance)
-                try:
-                    float(val)
-                    scenario = "performance"
-                except ValueError:
-                    scenario = "accuracy"
-                try:
-                    suite, dtype, mode = self._parse_suite_dt_mode(suite_dt_mode)
-                except ValueError as e:
-                    logger.warning(f"Line {line_num}: {e} -> skipping")
-                    continue
-                specs.append(BenchmarkSpec(suite, dtype, mode, scenario, model))
+        for suite, dtype, mode, model, result in parse_benchmark_entries(path):
+            # Determine scenario from result: if it's a number (possibly negative, decimal) -> performance
+            if re.match(r'^-?\d+(\.\d+)?$', result.strip()):
+                scenario = "performance"
+            else:
+                scenario = "accuracy"
+            specs.append(BenchmarkSpec(suite, dtype, mode, scenario, model))
         return specs
-
-    @staticmethod
-    def _parse_suite_dt_mode(s: str) -> Tuple[str, str, str]:
-        """Parse 'torchbench_float32_inference' into (suite, dtype, mode)."""
-        for suite in ALL_SUITES:
-            if s.startswith(suite + "_"):
-                remainder = s[len(suite) + 1 :]
-                # remainder = dtype_mode
-                parts = remainder.rsplit("_", 1)
-                if len(parts) != 2:
-                    raise ValueError(f"Invalid format: {s}")
-                dtype, mode = parts
-                if mode not in ALL_MODES:
-                    raise ValueError(f"Unknown mode {mode}")
-                return suite, dtype, mode
-        raise ValueError(f"Unknown suite in {s}")
 
     def _run_single(self, spec: BenchmarkSpec):
         """Execute one benchmark and augment its CSV."""
@@ -505,6 +522,7 @@ class BenchmarkRunner:
         if not csv_path.exists():
             self._create_fallback_csv(csv_path, spec)
 
+        # Augment the CSV by adding suite, dt, mode, scenario columns at the front
         self._augment_csv(csv_path, spec)
 
     def _create_fallback_csv(self, csv_path: Path, spec: BenchmarkSpec):
@@ -608,7 +626,10 @@ class BenchmarkRunner:
         return cmd_str, csv_path
 
     def _augment_csv(self, csv_path: Path, spec: BenchmarkSpec):
-        """Add suite, dtype, mode, scenario columns at the beginning of the CSV."""
+        """
+        Add suite, dt, mode, scenario columns at the beginning of the CSV.
+        This ensures every individual CSV contains these fields before aggregation.
+        """
         if not csv_path.exists():
             logger.warning(f"CSV not found: {csv_path}")
             return
@@ -621,6 +642,7 @@ class BenchmarkRunner:
                     return
                 base_fields = reader.fieldnames
                 new_cols = ['suite', 'dt', 'mode', 'scenario']
+                # Only add columns that are not already present
                 cols_to_add = [col for col in new_cols if col not in base_fields]
                 fieldnames = cols_to_add + base_fields
 
@@ -639,50 +661,82 @@ class BenchmarkRunner:
             logger.error(f"Failed to augment {csv_path}: {e}")
 
     def _generate_summary(self):
-        """Collect all individual CSVs and write a summary CSV in inductor_log."""
+        """Collect all individual CSVs and write a summary CSV with a fixed schema."""
         logger.info("Generating summary CSV...")
         csv_files = list(self.log_base.rglob("*.csv"))
         if not csv_files:
             logger.warning("No CSV files found to combine.")
             return
 
-        all_rows = []
-        fieldnames = None
-        summary_path = self.log_base / SUMMARY_CSV_NAME
+        # Filter out files we want to exclude
+        filtered_files = []
+        for f in csv_files:
+            if "compilation_metrics.csv" in f.name or f.name == SUMMARY_CSV_NAME:
+                logger.debug(f"Skipping {f.name}")
+                continue
+            filtered_files.append(f)
 
-        for csv_file in csv_files:
+        if not filtered_files:
+            logger.warning("No relevant CSV files after filtering.")
+            return
+
+        # Define the target columns for the summary CSV
+        target_fieldnames = [
+            'suite', 'dt', 'mode', 'scenario', 'dev', 'name', 'batch_size',
+            'accuracy', 'eager_latency', 'inductor_latency', 'speedup',
+            'torch_commit', 'shape'
+        ]
+
+        summary_rows = []
+        for csv_file in filtered_files:
             try:
                 with open(csv_file) as f:
                     reader = csv.DictReader(f)
-                    if fieldnames is None:
-                        fieldnames = reader.fieldnames + ["torch_commit", "shape"]
                     for row in reader:
-                        self.torch_commit
-                        row["torch_commit"] = self.torch_commit
-                        row["shape"] = "dynamic" if self.args.shape == "dynamic" else "static"
-                        all_rows.append(row)
+                        # Build a new row with only the target columns
+                        new_row = {col: '' for col in target_fieldnames}
+
+                        # Copy values that exist in the original row
+                        for key in row:
+                            if key in new_row:
+                                new_row[key] = row[key]
+
+                        # Add metadata
+                        new_row['torch_commit'] = self.torch_commit
+                        new_row['shape'] = 'dynamic' if self.args.shape == 'dynamic' else 'static'
+
+                        # Compute derived latency fields if this is a performance run
+                        scenario = new_row.get('scenario', '')
+                        if scenario == 'performance':
+                            abs_latency = row.get('abs_latency', '')
+                            speedup = row.get('speedup', '')
+                            # Try to compute eager_latency = abs_latency * speedup
+                            try:
+                                if abs_latency and speedup:
+                                    eager = float(abs_latency) * float(speedup)
+                                    new_row['eager_latency'] = str(eager)
+                            except (ValueError, TypeError):
+                                pass
+                            # inductor_latency is abs_latency
+                            new_row['inductor_latency'] = abs_latency
+                            # speedup is already copied
+                        # For accuracy runs, eager_latency and inductor_latency remain empty
+
+                        summary_rows.append(new_row)
             except Exception as e:
                 logger.error(f"Error processing {csv_file}: {e}")
 
-        if not all_rows:
+        if not summary_rows:
             logger.warning("No data extracted.")
             return
 
+        summary_path = self.log_base / SUMMARY_CSV_NAME
         with open(summary_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=target_fieldnames)
             writer.writeheader()
-            writer.writerows(all_rows)
+            writer.writerows(summary_rows)
 
         logger.info(f"Summary written to {summary_path}")
-
-    @staticmethod
-    def _extract_device(fname: str, existing: Optional[str]) -> str:
-        if existing:
-            return existing
-        parts = fname.replace(".csv", "").split("_")
-        if len(parts) >= 5 and parts[0] == "inductor":
-            return parts[4]
-        return "unknown"
 
 
 def check_torchbench_needed(args) -> Tuple[bool, Optional[List[str]]]:
@@ -690,46 +744,30 @@ def check_torchbench_needed(args) -> Tuple[bool, Optional[List[str]]]:
     Determine whether TorchBench models are needed and, if so,
     return (True, list_of_models) where list_of_models may be None (install all)
     or a list of specific model names.
-    If not needed, return (False, None).
     """
     if args.from_file:
-        # Parse file to see if any torchbench entries exist
         models = set()
-        if args.from_file.exists():
-            with open(args.from_file) as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    parts = line.split()
-                    if len(parts) < 3:
-                        continue
-                    suite_dt_mode = parts[0]
-                    model = parts[1]
-                    if suite_dt_mode.startswith("torchbench_"):
-                        models.add(model)
+        for suite, _, _, model, _ in parse_benchmark_entries(args.from_file):
+            if suite == "torchbench":
+                models.add(model)
         if models:
             return True, list(models)
         else:
             return False, None
 
-    # Check suite expansion
+    # Existing logic for command-line arguments
     suites = []
     if args.suite == "all":
         suites = ALL_SUITES
     elif args.suite in ALL_SUITES:
         suites = [args.suite]
     else:
-        # Invalid suite, but we'll let later error handling catch it
         suites = []
 
     if "torchbench" in suites:
-        # Need torchbench, but no specific models (install all)
         return True, None
 
-    # Check if a single model is given (assumed torchbench)
     if args.model_only and " -k " not in args.model_only:
-        # This is a simple model name, likely torchbench
         return True, [args.model_only]
 
     return False, None
