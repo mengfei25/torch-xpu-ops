@@ -12,7 +12,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 import logging
 
 logging.basicConfig(
@@ -729,6 +729,14 @@ class BenchmarkRunner:
         if not summary_rows:
             logger.warning("No data extracted.")
             return
+
+        # Sort rows by scenario, suite, mode, dt (in that order)
+        summary_rows.sort(key=lambda r: (
+            r.get('scenario', ''),
+            r.get('suite', ''),
+            r.get('mode', ''),
+            r.get('dt', '')
+        ))
 
         summary_path = self.log_base / SUMMARY_CSV_NAME
         with open(summary_path, "w", newline="") as f:
