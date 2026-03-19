@@ -1052,6 +1052,10 @@ class ResultAnalyzer:
         stats_df = self.generate_summary_stats(df)
         file_summary_df = self.generate_file_summary(df)
 
+        # Count new failures and new passes
+        new_failures_count = len(new_failures_df) if new_failures_df is not None else 0
+        new_passes_count = len(new_passes_df) if new_passes_df is not None else 0
+
         # Get current timestamp
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1061,16 +1065,32 @@ class ResultAnalyzer:
         # Header
         md.append("\n\n# Unit Test Results - Summary\n")
 
+        # Create the enhanced summary table with New Failed and New Passed columns
         if not stats_df.empty:
-            # Create a nice table for overall stats
-            md.append("| Device | Total | ✅ Passed | ❌ Failed | 💥 Error | ⏭️ Skipped | ⚠️ XFAIL | 📈 Pass Rate |")
-            md.append("|--------|-------|----------|----------|---------|-----------|---------|--------------|")
+            md.append("| Device | Total | Passed | Failed | ❌ New Failed | ✅ New Passed | ⏭️ Skipped | ⚠️ XFAIL | 📈 Pass Rate |")
+            md.append("|--------|-------|--------|--------|----------------|---------------|-----------|---------|--------------|")
 
             for _, row in stats_df.iterrows():
+                device = row['Device']
+                total = row['Total']
+                passed_non_failure = row['Passed']  # This is total - failed - error
+                failed_total = row['Failed'] + row['Error']  # Combine failed and error into one "Failed" column
+                skipped = row['Skipped']
+                xfail = row['XFAIL']
+                pass_rate = row['Pass Rate']
+
+                if device == 'Baseline':
+                    new_failed = "/"
+                    new_passed = "/"
+                else:  # Target
+                    # Shows New Failed = count of new failures on target
+                    # Shows New Passed = count of new passes on target
+                    new_failed = new_failures_count if new_failures_count > 0 else "/"
+                    new_passed = new_passes_count if new_passes_count > 0 else "/"
+
                 md.append(
-                    f"| {row['Device']} | {row['Total']} | {row['Passed']} | "
-                    f"{row['Failed']} | {row['Error']} | {row['Skipped']} | "
-                    f"{row['XFAIL']} | {row['Pass Rate']} |"
+                    f"| {device} | {total} | {passed_non_failure} | {failed_total} | {new_failed} | {new_passed} | "
+                    f"{skipped} | {xfail} | {pass_rate} |"
                 )
             md.append("")
 

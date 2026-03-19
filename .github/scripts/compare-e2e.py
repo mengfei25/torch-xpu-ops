@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced comparison tool for PyTorch inductor test results (target vs baseline).
-Recursively finds all *_performance.csv and *_accuracy.csv files,
-validates known suites, data types, and modes,
-merges data by suite, data_type, mode, model,
-and writes comparison to Excel (two sheets: Summary, Details) or CSV (two files).
-
-All missing cells are filled with empty strings.
-If performance files are missing, performance columns are omitted.
-If accuracy files are missing, accuracy columns are omitted.
-
-New in this version:
-- Rows with missing speedup/abs_latency are included (with NaN) instead of skipped.
-- Optional `--threshold` to set the performance change threshold.
-- Optional `--markdown` to generate two GitHub‑flavored Markdown files.
-- Improved code structure for readability and flexibility.
+Comparison tool for PyTorch inductor test results (target vs baseline).
 """
 
 import os
@@ -65,10 +51,12 @@ COLUMN_RENAME_MAP = {
     'total': 'total',
     'target passrate': 'tgt_pass%',
     'baseline passrate': 'bsl_pass%',
-    'New failed': 'new_fail',
-    'New passed': 'new_pass',
-    'inductor ratio': 'ind_ratio',
-    'eager ratio': 'eag_ratio',
+    'new_fail': 'new_fail',
+    'new_drop': 'new_drop',
+    'new_pass': 'new_pass',
+    'new_improve': 'new_improve',
+    'ind_ratio': 'ind_ratio',
+    'eag_ratio': 'eag_ratio',
 }
 
 # ----------------------------------------------------------------------
@@ -328,9 +316,9 @@ def merge_performance(target_records: List[Dict], baseline_records: List[Dict],
             return ""
         # If one side missing -> treat as new fail/pass
         if pd.isna(row.get("inductor_target")):
-            return "new_failed"
-        if pd.isna(row.get("inductor_baseline")):
             return "new_passed"
+        if pd.isna(row.get("inductor_baseline")):
+            return "new_failed"
         # If either ratio negative (unphysical) -> treat as fail/pass based on availability
         if row["inductor_ratio"] < 0 or row["eager_ratio"] < 0:
             return "new_failed" if pd.notna(row["inductor_target"]) else "new_passed"
@@ -411,7 +399,9 @@ def _accuracy_metrics(group: pd.DataFrame) -> pd.Series:
         'baseline_passed': group['accuracy_baseline'].apply(is_acc_pass).sum(),
         'total': len(group),
         'new_failed': (group['comparison_acc'] == 'new_failed').sum(),
+        'new_dropped': 0,
         'new_passed': (group['comparison_acc'] == 'new_passed').sum(),
+        'new_improved': 0,
     })
 
 
@@ -431,10 +421,10 @@ def _performance_metrics(group: pd.DataFrame) -> pd.Series:
         'target_passed': group['inductor_target'].apply(is_perf_pass).sum(),
         'baseline_passed': group['inductor_baseline'].apply(is_perf_pass).sum(),
         'total': len(group),
-        'new_failed': ((group['comparison_perf'] == 'new_failed') |
-                       (group['comparison_perf'] == 'new_dropped')).sum(),
-        'new_passed': ((group['comparison_perf'] == 'new_passed') |
-                       (group['comparison_perf'] == 'new_improved')).sum(),
+        'new_failed': (group['comparison_perf'] == 'new_failed').sum(),
+        'new_dropped': (group['comparison_perf'] == 'new_dropped').sum(),
+        'new_passed': (group['comparison_perf'] == 'new_passed').sum(),
+        'new_improved': (group['comparison_perf'] == 'new_improved').sum(),
         'inductor_ratio_geomean': geomean(group['inductor_ratio']),
         'eager_ratio_geomean': geomean(group['eager_ratio']),
     })
@@ -475,16 +465,18 @@ def _compute_group_summary(acc_merged: pd.DataFrame, perf_merged: pd.DataFrame,
     combined.rename(columns={
         'target_passed': 'target passed',
         'baseline_passed': 'baseline passed',
-        'new_failed': 'New failed',
-        'new_passed': 'New passed',
-        'inductor_ratio_geomean': 'inductor ratio',
-        'eager_ratio_geomean': 'eager ratio'
+        'new_failed': 'new_fail',
+        'new_dropped': 'new_drop',
+        'new_passed': 'new_pass',
+        'new_improved': 'new_improve',
+        'inductor_ratio_geomean': 'ind_ratio',
+        'eager_ratio_geomean': 'eag_ratio'
     }, inplace=True)
 
     # Ensure all expected columns exist
     cols = ['Level', 'Type', 'Category', 'target passed', 'baseline passed', 'total',
-            'target passrate', 'baseline passrate', 'New failed', 'New passed',
-            'inductor ratio', 'eager ratio']
+            'target passrate', 'baseline passrate', 'new_fail', 'new_drop', 'new_pass',
+            'new_improve', 'ind_ratio', 'eag_ratio']
     for col in cols:
         if col not in combined.columns:
             combined[col] = np.nan
@@ -505,7 +497,7 @@ def generate_all_summaries(acc_merged: pd.DataFrame, perf_merged: pd.DataFrame) 
 
     final = pd.concat(all_summaries, ignore_index=True, sort=False)
     # Convert counts to nullable integers
-    for col in ['target passed', 'baseline passed', 'total', 'New failed', 'New passed']:
+    for col in ['target passed', 'baseline passed', 'total', 'new_fail', 'new_drop', 'new_pass', 'new_improve']:
         if col in final.columns:
             final[col] = pd.to_numeric(final[col], errors='coerce').astype('Int64')
     # Convert passrates to percentages
@@ -513,7 +505,7 @@ def generate_all_summaries(acc_merged: pd.DataFrame, perf_merged: pd.DataFrame) 
         if col in final.columns:
             final[col] = (final[col] * 100).round(2)
     # Round ratios
-    for col in ['inductor ratio', 'eager ratio']:
+    for col in ['ind_ratio', 'eag_ratio']:
         if col in final.columns:
             final[col] = final[col].round(3)
 
@@ -525,10 +517,10 @@ def generate_all_summaries(acc_merged: pd.DataFrame, perf_merged: pd.DataFrame) 
 # ----------------------------------------------------------------------
 # Markdown output
 # ----------------------------------------------------------------------
-def _fmt_new(val: Any, is_fail: bool = True) -> str:
-    """Format new_fail/new_pass count with emoji if >0."""
+def _fmt_count(val: Any, good: bool = False) -> str:
+    """Format a count with emoji if >0."""
     if pd.notna(val) and val > 0:
-        emoji = "🔴" if is_fail else "🟢"
+        emoji = "🟢" if good else "🔴"
         return f"{val} {emoji}"
     return str(val) if pd.notna(val) else ""
 
@@ -548,7 +540,7 @@ def _fmt_ratio(val: Any, threshold: float) -> str:
 
 
 def write_summary_markdown(combined_summary: pd.DataFrame, threshold: float, filename: str):
-    """Write a Markdown file with the Overall Summary table."""
+    """Write a Markdown file with the Overall Summary table (split new_fail/drop and new_pass/improve)."""
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(f"\n\n# Dynamo Benchmark Test Results - Summary\n\n")
 
@@ -557,20 +549,28 @@ def write_summary_markdown(combined_summary: pd.DataFrame, threshold: float, fil
             f.write("No overall summary data available.\n")
             return
 
-        f.write("| Type | tgt_ps | bsl_ps | total | new_fail | new_pass | tgt_pass% | bsl_pass% | ind_ratio | eag_ratio |\n")
-        f.write("|------|--------|--------|-------|----------|----------|-----------|-----------|-----------|-----------|\n")
+        f.write("| Type | tgt_ps | bsl_ps | total | new_fail | new_drop | new_pass | new_improve | tgt_pass% | bsl_pass% | ind_ratio | eag_ratio |\n")
+        f.write("|------|--------|--------|-------|----------|----------|----------|-------------|-----------|-----------|-----------|-----------|\n")
         for _, row in overall.iterrows():
-            type_label = "Accuracy" if row['Type'] == 'Accuracy' else "Performance"
+            type_label = row['Type']
             tgt_ps = row.get('tgt_ps', '')
             bsl_ps = row.get('bsl_ps', '')
             total = row.get('total', '')
-            new_fail = _fmt_new(row.get('new_fail'), is_fail=True)
-            new_pass = _fmt_new(row.get('new_pass'), is_fail=False)
+            if type_label == 'Accuracy':
+                # For accuracy, new_drop and new_improve are not applicable -> show "/"
+                new_fail = _fmt_count(row.get('new_fail'), good=False)
+                new_pass = _fmt_count(row.get('new_pass'), good=True)
+                new_drop = new_improve = ind_ratio = eag_ratio = "/"
+            else:
+                new_fail = _fmt_count(row.get('new_fail'), good=False)
+                new_pass = _fmt_count(row.get('new_pass'), good=True)
+                new_drop = _fmt_count(row.get('new_drop'), good=False)
+                new_improve = _fmt_count(row.get('new_improve'), good=True)
+                ind_ratio = _fmt_ratio(row.get('ind_ratio'), threshold)
+                eag_ratio = _fmt_ratio(row.get('eag_ratio'), threshold)
             tgt_pass = row.get('tgt_pass%', '')
             bsl_pass = row.get('bsl_pass%', '')
-            ind_ratio = _fmt_ratio(row.get('ind_ratio'), threshold)
-            eag_ratio = _fmt_ratio(row.get('eag_ratio'), threshold)
-            f.write(f"| {type_label} | {tgt_ps} | {bsl_ps} | {total} | {new_fail} | {new_pass} | {tgt_pass} | {bsl_pass} | {ind_ratio} | {eag_ratio} |\n")
+            f.write(f"| {type_label} | {tgt_ps} | {bsl_ps} | {total} | {new_fail} | {new_drop} | {new_pass} | {new_improve} | {tgt_pass} | {bsl_pass} | {ind_ratio} | {eag_ratio} |\n")
         f.write("\n")
 
 
@@ -617,24 +617,23 @@ def write_details_markdown(details_df: pd.DataFrame, threshold: float, filename:
             for suite in details_df['suite'].dropna().unique():
                 suite_df = details_df[details_df['suite'] == suite]
 
-                # Accuracy counts (change analysis) – only if column exists
-                acc_fail = 0
+                # Accuracy totals & counts
                 if 'cmp_acc' in suite_df.columns:
+                    acc_total = suite_df['model'].notna().sum()
                     acc_fail = (suite_df['cmp_acc'] == 'new_failed').sum()
-                acc_pass = 0
-                if 'cmp_acc' in suite_df.columns:
                     acc_pass = (suite_df['cmp_acc'] == 'new_passed').sum()
+                else:
+                    acc_total = acc_fail = acc_pass = 0
 
-                # Performance counts (change analysis)
-                perf_fail = 0
-                perf_drop = 0
-                perf_pass = 0
-                perf_improve = 0
+                # Performance totals & counts
                 if 'cmp_perf' in suite_df.columns:
+                    perf_total = suite_df['model'].notna().sum()
                     perf_fail = (suite_df['cmp_perf'] == 'new_failed').sum()
                     perf_drop = (suite_df['cmp_perf'] == 'new_dropped').sum()
                     perf_pass = (suite_df['cmp_perf'] == 'new_passed').sum()
                     perf_improve = (suite_df['cmp_perf'] == 'new_improved').sum()
+                else:
+                    perf_total = perf_fail = perf_drop = perf_pass = perf_improve = 0
 
                 # Accuracy pass rate (absolute, not change)
                 acc_pass_rate = ""
@@ -642,7 +641,7 @@ def write_details_markdown(details_df: pd.DataFrame, threshold: float, filename:
                     acc_rows = suite_df['acc_tgt'].dropna()
                     if len(acc_rows) > 0:
                         pass_count = acc_rows.astype(str).str.contains('pass', na=False).sum()
-                        acc_pass_rate = f"{(pass_count / len(acc_rows) * 100):.1f}%"
+                        acc_pass_rate = f"{(pass_count / acc_total * 100):.1f}%"
 
                 # Performance ratios (geometric mean)
                 def geomean(series):
@@ -665,9 +664,11 @@ def write_details_markdown(details_df: pd.DataFrame, threshold: float, filename:
 
                 suite_rows.append({
                     'suite': suite,
+                    'acc_total': acc_total,
                     'acc_fail': acc_fail,
                     'acc_pass': acc_pass,
                     'acc_pass_rate': acc_pass_rate,
+                    'perf_total': perf_total,
                     'perf_fail': perf_fail,
                     'perf_drop': perf_drop,
                     'perf_pass': perf_pass,
@@ -684,14 +685,16 @@ def write_details_markdown(details_df: pd.DataFrame, threshold: float, filename:
                         return f"{val} {emoji}"
                     return str(val)
 
-                f.write("| Suite | 🧪 Acc Fail | 🧪 Acc Pass | 🧪 Acc Pass Rate | ⏱️ Perf Fail | ⏱️ Perf Drop | ⏱️ Perf Pass | ⏱️ Perf Improve | ⏱️ Ind Ratio | ⏱️ Eag Ratio |\n")
-                f.write("|-------|-------------|--------------|------------------|---------------|--------------|---------------|-----------------|--------------|--------------|\n")
+                f.write("| Suite | 🧪 Acc Total | 🧪 Acc Fail | 🧪 Acc Pass | 🧪 Acc Pass Rate | ⏱️ Perf Total | ⏱️ Perf Fail | ⏱️ Perf Drop | ⏱️ Perf Pass | ⏱️ Perf Improve | ⏱️ Ind Ratio | ⏱️ Eag Ratio |\n")
+                f.write("|-------|--------------|-------------|--------------|------------------|---------------|--------------|---------------|---------------|-----------------|--------------|--------------|\n")
                 for s in suite_rows:
                     row = [
                         s['suite'],
+                        str(s['acc_total']),
                         fmt_count(s['acc_fail'], good=False),
                         fmt_count(s['acc_pass'], good=True),
                         s['acc_pass_rate'],
+                        str(s['perf_total']),
                         fmt_count(s['perf_fail'], good=False),
                         fmt_count(s['perf_drop'], good=False),
                         fmt_count(s['perf_pass'], good=True),
