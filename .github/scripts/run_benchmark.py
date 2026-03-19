@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Tuple
 import logging
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -243,6 +243,8 @@ class Environment:
     pytorch_dir: Path = field(init=False)
     benchmark_dir: Path = field(init=False)
     uv_cmd: str = field(init=False)
+    python_exe: Path = field(init=False)        # Path to the Python interpreter to use
+    use_venv: bool = field(init=False)          # Whether we created a virtual env
 
     def __post_init__(self):
         self.workspace = self.workspace.resolve()
@@ -251,8 +253,23 @@ class Environment:
         self.benchmark_dir = self.workspace / BENCHMARK_REPO_NAME
         self.uv_cmd = find_uv(self.workspace)
 
+        # Determine Python interpreter
+        if self.python_version:   # --setup-python was used
+            self.use_venv = True
+            self.python_exe = self.venv_path / "bin" / "python"
+        else:
+            self.use_venv = False
+            # Use system Python
+            system_python = shutil.which("python3") or shutil.which("python")
+            if not system_python:
+                raise RuntimeError("No system Python found (python3/python not in PATH)")
+            self.python_exe = Path(system_python)
+            logger.info(f"Using system Python: {self.python_exe}")
+
     def create_venv(self):
         """Create a virtual environment with the specified Python version."""
+        if not self.use_venv:
+            raise RuntimeError("create_venv called but use_venv is False")
         logger.info("Creating virtual environment")
         run_cmd(
             f"{self.uv_cmd} venv {self.venv_path} --python {self.python_version} --clear",
@@ -263,16 +280,14 @@ class Environment:
     def _install_base_packages(self):
         """Install pip, setuptools, wheel, numpy."""
         logger.info("Installing base packages")
-        venv_python = self.venv_path / "bin" / "python"
         run_cmd(
-            f"{self.uv_cmd} pip install --python {venv_python} pip numpy 'setuptools<81' wheel",
+            f"{self.uv_cmd} pip install --python {self.python_exe} pip numpy 'setuptools<81' wheel",
             "Base packages",
         )
 
     def install_pytorch(self):
         """Install PyTorch family from channel, wheels, or local directory."""
         logger.info(f"Installing PyTorch from spec: {self.pytorch_spec}")
-        venv_python = self.venv_path / "bin" / "python"
 
         # Local wheel directory?
         if os.path.isdir(self.pytorch_spec):
@@ -280,7 +295,7 @@ class Environment:
             wheels = list(wheel_dir.glob("*.whl"))
             if not wheels:
                 raise ValueError(f"No wheel files in {wheel_dir}")
-            cmd = [self.uv_cmd, "pip", "install", "--python", str(venv_python)] + [str(w) for w in wheels]
+            cmd = [self.uv_cmd, "pip", "install", "--python", str(self.python_exe)] + [str(w) for w in wheels]
             run_cmd(cmd, "Installing from local wheels")
             return
 
@@ -308,16 +323,15 @@ class Environment:
             f"torchaudio{version_spec}",
             "torchao",
         ]
-        cmd = [self.uv_cmd, "pip", "install", "--python", str(venv_python)] + packages
+        cmd = [self.uv_cmd, "pip", "install", "--python", str(self.python_exe)] + packages
         if index_url:
             cmd.extend(["--index-url", index_url])
         run_cmd(cmd, f"Installing PyTorch ({channel}{version_spec})")
 
     def get_torch_commit(self) -> str:
         """Return git commit hash of installed torch, or 'unknown' if not available."""
-        venv_python = self.venv_path / "bin" / "python"
         commit = run_cmd(
-            f"{venv_python} -c 'import torch; print(torch.version.git_version)'",
+            f"{self.python_exe} -c 'import torch; print(torch.version.git_version)'",
             capture=True,
         )
         return commit if commit else "unknown"
@@ -338,10 +352,54 @@ class Environment:
             cwd=self.pytorch_dir,
         )
 
+        # Read pin files from PyTorch CI
+        self._read_pin_files()
+
+    def _read_pin_files(self):
+        """Read pin files from PyTorch source and store relevant specs."""
+        self.hf_req_file = self.pytorch_dir / ".ci/docker/ci_commit_pins/huggingface-requirements.txt"
+        self.timm_pin_file = self.pytorch_dir / ".ci/docker/ci_commit_pins/timm.txt"
+        self.torchbench_pin_file = self.pytorch_dir / ".ci/docker/ci_commit_pins/torchbench.txt"
+        self.timm_pinned_version = None
+        self.torchbench_commit = None
+
+        if self.timm_pin_file.exists():
+            with open(self.timm_pin_file) as f:
+                self.timm_pinned_version = f.read().strip()
+        if self.torchbench_pin_file.exists():
+            with open(self.torchbench_pin_file) as f:
+                self.torchbench_commit = f.read().strip()
+
     def install_additional_packages(self):
         """Install all remaining Python packages with version control (fallback if no requirements.txt)."""
         logger.info("Installing additional packages (fallback mode)")
-        venv_python = self.venv_path / "bin" / "python"
+
+        # Install huggingface requirements if available (for transformers, etc.)
+        if hasattr(self, 'hf_req_file') and self.hf_req_file.exists():
+            logger.info(f"Installing pinned huggingface requirements from {self.hf_req_file}")
+            run_cmd(
+                f"{self.uv_cmd} pip install --python {self.python_exe} -r {self.hf_req_file}",
+                "Installing huggingface pinned requirements",
+            )
+        else:
+            # Fallback to installing transformers & accelerate individually
+            run_cmd(
+                f"{self.uv_cmd} pip install --python {self.python_exe} {get_package_spec('transformers', self.versions)} {get_package_spec('accelerate', self.versions)}",
+                "Installing transformers & accelerate",
+            )
+
+        # Install timm with pinned version if available
+        timm_spec = get_package_spec('timm', self.versions)
+        # If no env/version and we have a pinned version, use that
+        if timm_spec == 'timm' and hasattr(self, 'timm_pinned_version') and self.timm_pinned_version:
+            timm_spec = f"timm=={self.timm_pinned_version}"
+            logger.info(f"Using pinned timm version: {self.timm_pinned_version}")
+        run_cmd(
+            f"{self.uv_cmd} pip install --python {self.python_exe} {timm_spec}",
+            "Installing timm",
+        )
+
+        # Continue with other packages
         pkgs = [
             get_package_spec("pandas", self.versions),
             get_package_spec("psutil", self.versions),
@@ -349,31 +407,19 @@ class Environment:
             get_package_spec("requests", self.versions),
         ]
         run_cmd(
-            f"{self.uv_cmd} pip install --python {venv_python} " + " ".join(pkgs),
+            f"{self.uv_cmd} pip install --python {self.python_exe} " + " ".join(pkgs),
             "Installing pandas, psutil, scipy, requests",
         )
 
         # numpy separately (upgrade)
         run_cmd(
-            f"{self.uv_cmd} pip install --python {venv_python} -U {get_package_spec('numpy', self.versions)}",
+            f"{self.uv_cmd} pip install --python {self.python_exe} -U {get_package_spec('numpy', self.versions)}",
             "Installing numpy",
-        )
-
-        # transformers & accelerate
-        run_cmd(
-            f"{self.uv_cmd} pip install --python {venv_python} {get_package_spec('transformers', self.versions)} {get_package_spec('accelerate', self.versions)}",
-            "Installing transformers & accelerate",
-        )
-
-        # timm
-        run_cmd(
-            f"{self.uv_cmd} pip install --python {venv_python} {get_package_spec('timm', self.versions)}",
-            "Installing timm",
         )
 
         # pyre-extensions
         run_cmd(
-            f"{self.uv_cmd} pip install --python {venv_python} {get_package_spec('pyre_extensions', self.versions)}",
+            f"{self.uv_cmd} pip install --python {self.python_exe} {get_package_spec('pyre_extensions', self.versions)}",
             "Installing pyre-extensions",
         )
 
@@ -388,13 +434,13 @@ class Environment:
                 pkg = line.strip()
                 if pkg and not pkg.startswith("#") and not pkg.startswith("torch"):
                     run_cmd(
-                        f"{self.uv_cmd} pip install --python {venv_python} {pkg}",
+                        f"{self.uv_cmd} pip install --python {self.python_exe} {pkg}",
                         check=False,
                     )
 
         # custom gym fork (optional)
         run_cmd(
-            f"{self.uv_cmd} pip install --python {venv_python} git+https://github.com/nocoding03/gym@fix-np",
+            f"{self.uv_cmd} pip install --python {self.python_exe} git+https://github.com/nocoding03/gym@fix-np",
             "Installing custom gym",
             check=False,
         )
@@ -402,25 +448,28 @@ class Environment:
     def install_from_requirements(self, req_file: Path):
         """Install all packages listed in a requirements.txt file."""
         logger.info(f"Installing packages from {req_file}")
-        venv_python = self.venv_path / "bin" / "python"
         run_cmd(
-            f"{self.uv_cmd} pip install --python {venv_python} -r {req_file}",
+            f"{self.uv_cmd} pip install --python {self.python_exe} -r {req_file}",
             "Installing from requirements.txt",
         )
 
-    def install_benchmark_repo(self, torchbench_models: Optional[List[str]] = None):
+    def install_benchmark_repo(self, torchbench_models: Optional[List[str]] = None, torchbench_commit: Optional[str] = None):
         """
         Clone benchmark repo and optionally install only specified TorchBench models.
         If torchbench_models is None, the entire suite is installed.
+        If torchbench_commit is provided, checkout that commit after cloning.
         """
         if self.benchmark_dir.exists():
             shutil.rmtree(self.benchmark_dir)
         run_cmd(f"git clone {BENCHMARK_REPO} {self.benchmark_dir}", "Cloning benchmark repo")
 
+        if torchbench_commit:
+            logger.info(f"Checking out torchbench at commit {torchbench_commit}")
+            run_cmd(f"git checkout {torchbench_commit}", cwd=self.benchmark_dir)
+
         if torchbench_models is not None:
             # Install either specific models or all (if list is empty)
-            venv_python = self.venv_path / "bin" / "python"
-            install_cmd = [str(venv_python), "install.py", "--continue_on_fail"]
+            install_cmd = [str(self.python_exe), "install.py", "--continue_on_fail"]
             if torchbench_models:  # non-empty list
                 install_cmd.extend(torchbench_models)
                 desc = f"Installing TorchBench models: {', '.join(torchbench_models)}"
@@ -507,9 +556,9 @@ class BenchmarkRunner:
         log_dir = self.log_base / self.torch_commit / spec.suite / spec.dtype
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Show installed torch for debugging
+        # Show installed torch for debugging using uv pip list
         run_cmd(
-            f"{self.env.venv_path}/bin/pip list | grep -w 'torch'",
+            f"{self.env.python_exe} -m pip list | grep -w 'torch '",
             shell=True,
             check=False,
         )
@@ -593,24 +642,22 @@ class BenchmarkRunner:
                 model_extra = ["--only", spec.model]
 
         # Output files
-        model_safe = spec.model.replace("/", "_")
-        csv_name = f"inductor_{spec.suite}_{spec.dtype}_{spec.mode}_{self.args.device}_{spec.scenario}_{model_safe}.csv"
+        csv_name = f"inductor_{spec.suite}_{spec.dtype}_{spec.mode}_{self.args.device}_{spec.scenario}.csv"
         csv_path = log_dir / csv_name
         log_path = log_dir / csv_name.replace(".csv", ".log")
 
-        venv_python = self.env.venv_path / "bin" / "python"
         script = self.env.pytorch_dir / "benchmarks" / "dynamo" / f"{spec.suite}.py"
         cmd_parts = [
-            str(venv_python),
+            str(self.env.python_exe),
             str(script),
             f"--{spec.scenario}",
             f"--{real_dt}",
+            *dt_extra,
+            *mode_extra,
             "-d",
             self.args.device,
             "-n",
             str(self.args.iterations),
-            *dt_extra,
-            *mode_extra,
             *shape_extra,
             *partition_flags,
             *model_extra,
@@ -628,7 +675,7 @@ class BenchmarkRunner:
     def _augment_csv(self, csv_path: Path, spec: BenchmarkSpec):
         """
         Add suite, dt, mode, scenario columns at the beginning of the CSV.
-        This ensures every individual CSV contains these fields before aggregation.
+        Also filter out rows that do not have the expected device.
         """
         if not csv_path.exists():
             logger.warning(f"CSV not found: {csv_path}")
@@ -646,11 +693,23 @@ class BenchmarkRunner:
                 cols_to_add = [col for col in new_cols if col not in base_fields]
                 fieldnames = cols_to_add + base_fields
 
+            # Add the new columns to every row
             for row in rows:
                 row['suite'] = spec.suite
                 row['dt'] = spec.dtype
                 row['mode'] = spec.mode
                 row['scenario'] = spec.scenario
+
+            # ---- NEW: Filter out rows with incorrect device ----
+            expected_device = self.args.device
+            original_rows = rows[:]  # keep a copy for fallback
+            rows = [row for row in rows if row.get('dev') == expected_device]
+            if not rows:
+                logger.warning(f"No rows with device '{expected_device}' found in {csv_path}; keeping all rows.")
+                rows = original_rows
+            else:
+                logger.debug(f"Filtered {len(original_rows) - len(rows)} malformed row(s) from {csv_path}")
+            # ----------------------------------------------------
 
             with open(csv_path, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -671,9 +730,9 @@ class BenchmarkRunner:
         # Filter out files we want to exclude
         filtered_files = []
         for f in csv_files:
-            if "compilation_metrics.csv" in f.name or f.name == SUMMARY_CSV_NAME:
-                logger.debug(f"Skipping {f.name}")
+            if not f.name.endswith(('_accuracy.csv', '_performance.csv')):
                 continue
+            logger.debug(f"Summarizing {f.name}")
             filtered_files.append(f)
 
         if not filtered_files:
@@ -792,7 +851,7 @@ def main():
 
     # Setup flags
     parser.add_argument("--setup-python", nargs="?", const=DEFAULT_PYTHON_VERSION, default=None,
-                        help="Create Python virtual environment. Optionally specify Python version (default: 3.10).")
+                        help="Create Python virtual environment. Optionally specify Python version (default: 3.10). If omitted, system Python is used.")
     parser.add_argument("--setup-deps", action="store_true",
                         help="Install PyTorch, dependencies, and clone repositories (benchmark repo only if TorchBench is needed).")
     parser.add_argument("--pytorch", default="release",
@@ -845,11 +904,13 @@ def main():
         env = Environment(workspace, args.setup_python, args.pytorch, versions)
         env.create_venv()
     else:
+        logger.info("=== Using system Python ===")
+        # Create environment without creating venv; detect system python inside Environment
         env = Environment(workspace, "", "")
-        env.venv_path = workspace / VENV_DIR_NAME
-        env.pytorch_dir = workspace / PYTORCH_DIR_NAME
-        env.benchmark_dir = workspace / BENCHMARK_REPO_NAME
-        env.uv_cmd = find_uv(workspace)
+        # Check that python_exe is valid
+        if not env.python_exe.exists():
+            logger.error(f"System Python not found: {env.python_exe}")
+            sys.exit(1)
 
     # ------------------------------------------------------------------
     # 2. Install dependencies (if requested)
@@ -857,13 +918,16 @@ def main():
     if args.setup_deps:
         logger.info("=== Installing dependencies ===")
         if args.setup_python is None:
+            # Ensure versions are loaded for system python case
             versions = DEFAULT_VERSIONS.copy()
             if args.config and args.config.exists():
                 req_versions = load_requirements(args.config)
                 versions.update(req_versions)
             env.versions = versions
-        if not env.venv_path.exists():
-            logger.error(f"Virtual environment not found at {env.venv_path}. Run with --setup-python first.")
+
+        # Check Python availability (should be set)
+        if not env.python_exe.exists():
+            logger.error(f"Python interpreter not found: {env.python_exe}")
             sys.exit(1)
 
         env.install_pytorch()
@@ -879,7 +943,7 @@ def main():
         # Clone benchmark repo only if TorchBench is needed
         if need_torchbench:
             logger.info("TorchBench models required - cloning benchmark repository.")
-            env.install_benchmark_repo(torchbench_models)
+            env.install_benchmark_repo(torchbench_models, torchbench_commit=env.torchbench_commit if hasattr(env, 'torchbench_commit') else None)
         else:
             logger.info("TorchBench not required - skipping benchmark repo clone.")
 
@@ -887,10 +951,10 @@ def main():
     # 3. Run benchmarks (if requested implicitly)
     # ------------------------------------------------------------------
     ran_benchmarks = False
-    if True:
+    if True:  # Always try to run benchmarks if args are provided
         logger.info("=== Starting benchmarks ===")
-        if not env.venv_path.exists():
-            logger.error(f"Virtual environment not found at {env.venv_path}. Run with --setup-python first.")
+        if not env.python_exe.exists():
+            logger.error(f"Python interpreter not found: {env.python_exe}")
             sys.exit(1)
         if not env.pytorch_dir.exists():
             logger.error(f"PyTorch source not found at {env.pytorch_dir}. Run with --setup-deps first.")
