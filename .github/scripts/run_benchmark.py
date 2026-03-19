@@ -915,7 +915,7 @@ def main():
     # ------------------------------------------------------------------
     # 2. Install dependencies (if requested)
     # ------------------------------------------------------------------
-    if args.setup_deps:
+    if args.setup_deps or args.setup_python is not None:
         logger.info("=== Installing dependencies ===")
         if args.setup_python is None:
             # Ensure versions are loaded for system python case
