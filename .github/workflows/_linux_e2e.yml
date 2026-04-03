@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 env:
-  ddd: 4
+  bbb: 2
 
 jobs:
   test:
@@ -14,9 +14,9 @@ jobs:
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
       env:
-        fff: 6
+        ddd: 4
     env:
-      eee: 5
+      ccc: 3
     steps:
       - name: Check runner
         shell: bash -xe {0}
@@ -25,4 +25,6 @@ jobs:
       - name: Checkout torch-xpu-ops
         uses: actions/checkout@v4
       - name: Prepare test env
+        env:
+          eee: 5
         uses: ./.github/actions/linux-testenv
