@@ -1,5 +1,17 @@
 name: Setup Test Environment
 description: afds
+
+inputs:
+  environment:
+    description: 'Deployment environment'
+    required: false
+    type: string
+    options:
+      - dev
+      - staging
+      - prod
+    default: 'dev'
+
 runs:
   using: composite
   steps:
@@ -7,3 +19,4 @@ runs:
       shell: bash -xe {0}
       run: |
         printenv
+        echo ${{ inputs.environment }}
