@@ -1,0 +1,49 @@
+name: Resolve transformers matrix
+description: >-
+  Read the transformers test matrix from a YAML file and emit a JSON
+  array suitable for a workflow `matrix:` strategy.
+
+inputs:
+  config:
+    required: false
+    default: ${{ github.workspace }}/torch-xpu-ops/.ci/config/transformers_matrix.yaml
+    description: Path to the transformers_matrix.yaml file.
+
+outputs:
+  matrix:
+    value: ${{ steps.resolve.outputs.matrix }}
+    description: JSON array of {test_case, cmd, filter} objects.
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve matrix
+      id: resolve
+      shell: bash -eo pipefail {0}
+      env:
+        CONFIG: ${{ inputs.config }}
+      run: |
+        python3 - <<'PY' >/tmp/_tm.json
+        import json
+        import os
+        import sys
+        try:
+            import yaml
+        except ImportError:
+            os.system("pip install -q pyyaml")
+            import yaml
+        with open(os.environ["CONFIG"]) as fh:
+            data = yaml.safe_load(fh) or {}
+        cases = data.get("cases", [])
+        out = []
+        for c in cases:
+            entry = {
+                "test_case": c["test_case"],
+                "cmd": c.get("cmd", ""),
+                "filter": c.get("filter", ""),
+            }
+            out.append(entry)
+        json.dump(out, sys.stdout)
+        PY
+        matrix=$(cat /tmp/_tm.json)
+        echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"

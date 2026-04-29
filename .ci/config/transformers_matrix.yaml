@@ -1,0 +1,53 @@
+# Transformers XPU pytest matrix.
+#
+# Each entry yields one job in the `tests` matrix and runs:
+#   pytest --make-reports=<test_case> --junit-xml=reports/<test_case>.xml \
+#       -k "<filter>" <cmd>
+#
+# `filter` defaults to "" (no -k filter). `cmd` may include pytest options.
+#
+# Excluded tests are documented inline near each entry.
+
+cases:
+  # huggingface/transformers#36267 (marian tests)
+  - test_case: tests_backbone
+    cmd: '--ignore=tests/models/marian/test_modeling_marian.py -k backbone tests'
+
+  - test_case: tests_py
+    cmd: 'tests/*.py'
+
+  # torch.distributed.* not yet supported by XPU.
+  - test_case: tests_generation
+    cmd: 'tests/generation'
+    filter: 'not TestFSDPGeneration'
+
+  # 4-way shard so each shard takes ~15-30 minutes.
+  # Excluded:
+  #   * pytorch/pytorch#140965 (aten::_linalg_eigvals)
+  #   * huggingface/transformers#36267 (marian tests)
+  - test_case: tests_models_0
+    cmd: 'tests/models --num-shards 4 --shard-id 0 --ignore=tests/models/marian/test_modeling_marian.py'
+    filter: 'not test_resize_embeddings_untied and not test_resize_tokens_embeddings'
+  - test_case: tests_models_1
+    cmd: 'tests/models --num-shards 4 --shard-id 1 --ignore=tests/models/marian/test_modeling_marian.py'
+    filter: 'not test_resize_embeddings_untied and not test_resize_tokens_embeddings'
+  - test_case: tests_models_2
+    cmd: 'tests/models --num-shards 4 --shard-id 2 --ignore=tests/models/marian/test_modeling_marian.py'
+    filter: 'not test_resize_embeddings_untied and not test_resize_tokens_embeddings'
+  - test_case: tests_models_3
+    cmd: 'tests/models --num-shards 4 --shard-id 3 --ignore=tests/models/marian/test_modeling_marian.py'
+    filter: 'not test_resize_embeddings_untied and not test_resize_tokens_embeddings'
+
+  # Excluded:
+  #   * Some ray tests hang (root cause unknown)
+  #   * torch.distributed.* not yet supported by XPU
+  - test_case: tests_trainer
+    cmd: 'tests/trainer'
+    filter: 'not ray and not TestTrainerDistributed and not TestTrainerDistributedXPU and not TestFSDPTrainer'
+
+  # Excluded:
+  #   * Network proxy connection issue (root cause unknown)
+  #   * tests/utils/test_import_utils.py invalidates engine state - see #36267
+  - test_case: tests_utils
+    cmd: '--ignore=tests/utils/test_import_utils.py tests/utils'
+    filter: 'not test_load_img_url_timeout'
