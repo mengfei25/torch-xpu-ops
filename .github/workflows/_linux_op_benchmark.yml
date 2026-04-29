@@ -16,6 +16,14 @@ on:
         type: string
         default: '3.10'
         description: Python version
+      reference_issue:
+        type: string
+        default: '1689'
+        description: GitHub issue number whose body holds the microbench baseline run id.
+      docker_image_name:
+        type: string
+        default: 'intelgpu/ubuntu-24.04-lts2:2523.40'
+        description: Docker image for the benchmark container.
 
 permissions:
   contents: read
@@ -23,22 +31,23 @@ permissions:
 defaults:
   run:
     shell: bash -xe {0}
+
 env:
   GH_TOKEN: ${{ github.token }}
   HF_TOKEN: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
   HUGGING_FACE_HUB_TOKEN: ${{ secrets.HUGGING_FACE_HUB_TOKEN }}
   DOCKER_REGISTRY_AUTH_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
-  reference_issue: 1689
 
 jobs:
+  # ── Resolve runner ────────────────────────────────────────────────────────
   runner:
     runs-on: ${{ inputs.runner }}
     name: get-runner
     outputs:
       runner_id: ${{ steps.runner-info.outputs.runner_id }}
-      user_id: ${{ steps.runner-info.outputs.user_id }}
+      user_id:   ${{ steps.runner-info.outputs.user_id }}
       render_id: ${{ steps.runner-info.outputs.render_id }}
-      hostname: ${{ steps.runner-info.outputs.hostname }}
+      hostname:  ${{ steps.runner-info.outputs.hostname }}
     steps:
       - name: Clean workspace
         run: sudo find . -maxdepth 1 ! -name '.' ! -name '..' -exec sudo rm -rf {} + 2>/dev/null || true
@@ -48,47 +57,47 @@ jobs:
         id: runner-info
         uses: ./.github/actions/get-runner
 
+  # ── Run microbench ────────────────────────────────────────────────────────
   op_benchmark:
     needs: runner
     runs-on: ${{ needs.runner.outputs.runner_id }}
     timeout-minutes: 900
     container:
-      image: intelgpu/ubuntu-24.04-lts2:2523.40
+      image: ${{ inputs.docker_image_name }}
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
-      options: --device=/dev/mem --device=/dev/dri --group-add video --security-opt seccomp=unconfined --cap-add=SYS_PTRACE --shm-size=8g
-              -u ${{ needs.runner.outputs.user_id }}:${{ needs.runner.outputs.render_id }}
+      options: >-
+        --device=/dev/mem
+        --device=/dev/dri
+        --group-add video
+        --security-opt seccomp=unconfined
+        --cap-add=SYS_PTRACE
+        --shm-size=8g
+        -u ${{ needs.runner.outputs.user_id }}:${{ needs.runner.outputs.render_id }}
       env:
         AGENT_TOOLSDIRECTORY: /opt/xpu-tool
     steps:
       - name: Checkout torch-xpu-ops
         uses: actions/checkout@v6
+
       - name: Prepare test env
         uses: ./.github/actions/linux-testenv
         with:
           pytorch: ${{ inputs.pytorch }}
           python: ${{ inputs.python }}
+
       - name: Run Torch XPU Op Benchmark on ${{ needs.runner.outputs.hostname }}
-        run: |
-          mkdir -p ${{ github.workspace }}/op_benchmark
-          cd test/microbench
-          filename=$(find -- *.py)
-          for i in $filename
-          do
-            python ${i%.*}.py > ${{ github.workspace }}/op_benchmark/${i%.*}.log
-          done
-          pip install pandas openpyxl
-          # Summary forward op time
-          python ${{ github.workspace }}/.github/scripts/microbench_summary.py ${{ github.workspace }}/op_benchmark ${{ github.workspace }}/op_benchmark/forward_op_summary.csv
-          # Summary backward op time
-          python ${{ github.workspace }}/.github/scripts/microbench_summary.py ${{ github.workspace }}/op_benchmark ${{ github.workspace }}/op_benchmark/backward_op_summary.csv --backward
-      - name: Upload Inductor XPU OP benchmark Log
+        uses: ./.github/actions/run-microbench
+
+      - name: Upload microbench artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: Inductor-XPU-OP-Benchmark-Data-${{ github.event.pull_request.number || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ github.workspace }}/op_benchmark
+          if-no-files-found: warn
 
+  # ── Compare vs baseline + update reference issue ──────────────────────────
   op_benchmark_test_results_check:
     needs: op_benchmark
     runs-on: ubuntu-24.04
@@ -99,66 +108,34 @@ jobs:
     steps:
       - name: Install gh-cli
         run: |
-          sudo apt-get update
-          sudo apt-get install gh rsync ca-certificates -y
+          sudo apt-get update -qq
+          sudo apt-get install -y gh rsync ca-certificates
+
       - name: Checkout torch-xpu-ops
         uses: actions/checkout@v6
+
       - name: Setup python-${{ inputs.python }}
         uses: actions/setup-python@v6
         with:
           python-version: ${{ inputs.python }}
-      - name: Download XPU UT Logs
+
+      - name: Download current run artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: Inductor-XPU-OP-Benchmark-Data-${{ github.event.pull_request.number || github.sha }}-*
           path: ${{ github.workspace }}/op_benchmark_tmp
-      - name: Download OP Baseline
-        continue-on-error: true
-        id: reference_id
-        run: |
-          # latest dir
-          latest_dir=$(find . -type d -name "Inductor-XPU-OP-Benchmark-Data-${{ github.event.pull_request.number || github.sha }}-*" |sort -V |tail -n 1)
-          mv ${{ github.workspace }}/op_benchmark_tmp/${latest_dir} ${{ github.workspace }}/op_benchmark
-          # baseline
-          REFERENCE_RUN_ID="$(gh --repo ${GITHUB_REPOSITORY} issue view ${reference_issue} \
-            --json body -q .body |grep "Inductor-XPU-OP-Benchmark-Data" |sed 's/.*: *//')"
-          gh --repo ${GITHUB_REPOSITORY} run download ${REFERENCE_RUN_ID} -p "Inductor-XPU-OP-Benchmark-Data-*"
-          rm -rf ${{ github.workspace }}/reference
-          mkdir -p ${{ github.workspace }}/reference
-          mv -f Inductor-XPU-OP-Benchmark-Data-*-Updated/* ${{ github.workspace }}/reference
 
-          mkdir -p ${{ github.workspace }}/baseline
-          if [[ -f "${{ github.workspace }}/reference/new_baseline/baseline_forward_op_summary.csv" ]]; then
-            cp ${{ github.workspace }}/reference/new_baseline/baseline_forward_op_summary.csv ${{ github.workspace }}/baseline
-            cp ${{ github.workspace }}/reference/new_baseline/baseline_backward_op_summary.csv ${{ github.workspace }}/baseline
-          else
-            cp ${{ github.workspace }}/reference/forward_op_summary.csv ${{ github.workspace }}/baseline/baseline_forward_op_summary.csv
-            cp ${{ github.workspace }}/reference/backward_op_summary.csv ${{ github.workspace }}/baseline/baseline_backward_op_summary.csv
-          fi
-      - name: Check the OP Regression
-        run: |
-          pip install tabulate pandas
-          # Compare forward op
-          python ${{ github.workspace }}/.github/scripts/op_perf_comparison.py --xpu_file ${{ github.workspace }}/op_benchmark/forward_op_summary.csv --baseline_file ${{ github.workspace }}/baseline/baseline_forward_op_summary.csv
-          # Compare backward op
-          python ${{ github.workspace }}/.github/scripts/op_perf_comparison.py --xpu_file ${{ github.workspace }}/op_benchmark/backward_op_summary.csv --baseline_file ${{ github.workspace }}/baseline/baseline_backward_op_summary.csv
-      - name: Update OP Baseline
-        run: |
-          mkdir ${{ github.workspace }}/new_baseline
-          cp ${{ github.workspace }}/baseline/baseline*.csv ${{ github.workspace }}/new_baseline
-          # Update forward op
-          python ${{ github.workspace }}/.github/scripts/op_calculate_best_perf.py --xpu ${{ github.workspace }}/op_benchmark/forward_op_summary.csv --baseline ${{ github.workspace }}/new_baseline/baseline_forward_op_summary.csv -r
-          # Update backward op
-          python ${{ github.workspace }}/.github/scripts/op_calculate_best_perf.py --xpu ${{ github.workspace }}/op_benchmark/backward_op_summary.csv --baseline ${{ github.workspace }}/new_baseline/baseline_backward_op_summary.csv -r
-          cp -r ${{ github.workspace }}/new_baseline ${{ github.workspace }}/op_benchmark
-      - name: Upload Inductor XPU OP benchmark Log
+      - name: Compare against baseline
+        uses: ./.github/actions/compare-microbench
+        with:
+          reference-issue: ${{ inputs.reference_issue }}
+          artifact-dir: ${{ github.workspace }}/op_benchmark_tmp
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload updated baseline
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: Inductor-XPU-OP-Benchmark-Data-${{ github.event.pull_request.number || github.sha }}-Updated-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ github.workspace }}/op_benchmark
-      - name: Upload Reference Run ID
-        run: |
-          gh --repo ${GITHUB_REPOSITORY} issue view ${reference_issue} --json body -q .body | \
-            sed "s/Inductor-XPU-OP-Benchmark-Data:.*/Inductor-XPU-OP-Benchmark-Data: ${GITHUB_RUN_ID}/" | sed '/^$/d' > new_body.txt
-          gh --repo ${GITHUB_REPOSITORY} issue edit ${reference_issue} --body-file new_body.txt
+          if-no-files-found: warn

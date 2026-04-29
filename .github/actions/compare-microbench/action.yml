@@ -1,0 +1,56 @@
+name: Compare microbench against baseline
+description: >-
+  Download the microbench baseline artifact referenced from the issue
+  body, compare current vs baseline, then update the best-of baseline
+  for the next run. Tolerates missing baseline (first-ever run).
+
+inputs:
+  reference-issue:
+    required: true
+    description: GitHub issue number whose body holds the baseline run id.
+  artifact-dir:
+    required: false
+    default: ${{ github.workspace }}/op_benchmark_tmp
+    description: Where the upstream artifact was downloaded to.
+  current-prefix:
+    required: false
+    default: Inductor-XPU-OP-Benchmark-Data
+    description: Artifact name prefix for the current run.
+  scripts-dir:
+    required: false
+    default: ${{ github.workspace }}/.ci/scripts/microbench
+    description: Directory containing fetch_baseline.sh / compare.sh / update_reference_issue.sh.
+  github-token:
+    required: true
+    description: Token with issues:read+write to manage the reference issue.
+  update-reference-issue:
+    required: false
+    default: 'true'
+    description: When 'true', overwrite the reference issue body with this run id.
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch baseline
+      shell: bash -eo pipefail {0}
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REFERENCE_ISSUE: ${{ inputs.reference-issue }}
+        ARTIFACT_DIR: ${{ inputs.artifact-dir }}
+        CURRENT_PREFIX: ${{ inputs.current-prefix }}
+      run: |
+        bash "${{ inputs.scripts-dir }}/fetch_baseline.sh"
+
+    - name: Compare and update best-of baseline
+      shell: bash -eo pipefail {0}
+      run: |
+        bash "${{ inputs.scripts-dir }}/compare.sh"
+
+    - name: Update reference issue
+      if: ${{ inputs.update-reference-issue == 'true' }}
+      shell: bash -eo pipefail {0}
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REFERENCE_ISSUE: ${{ inputs.reference-issue }}
+      run: |
+        bash "${{ inputs.scripts-dir }}/update_reference_issue.sh"

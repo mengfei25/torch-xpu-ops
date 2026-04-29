@@ -1,0 +1,29 @@
+name: Run microbenchmarks
+description: >-
+  Execute every script under pytorch/test/microbench and emit
+  forward/backward summary CSVs to op_benchmark/.
+
+inputs:
+  out-dir:
+    required: false
+    default: ${{ github.workspace }}/op_benchmark
+    description: Output directory for raw logs and summary CSVs.
+  pytorch-dir:
+    required: false
+    default: ${{ github.workspace }}/pytorch
+    description: PyTorch source directory.
+  scripts-dir:
+    required: false
+    default: ${{ github.workspace }}/.ci/scripts/microbench
+    description: Directory containing run.sh.
+
+runs:
+  using: composite
+  steps:
+    - name: Run microbench suite
+      shell: bash -eo pipefail {0}
+      env:
+        OUT_DIR: ${{ inputs.out-dir }}
+        PYTORCH_DIR: ${{ inputs.pytorch-dir }}
+      run: |
+        bash "${{ inputs.scripts-dir }}/run.sh"
