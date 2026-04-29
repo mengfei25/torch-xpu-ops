@@ -12,7 +12,7 @@ on:
       - '.github/actions/collect-environment/action.yml'
       - '.ci/scripts/collect/**'
       - '.github/actions/summarize-junit/action.yml'
-      - '.github/workflows/_linux_accelerate.yml'
+      - '.github/workflows/_test-accelerate.yml'
       - '.ci/scripts/accelerate/**'
   workflow_dispatch:
     inputs:

@@ -104,7 +104,7 @@ jobs:
               x="${x#"${x%%[![:space:]]*}"}"   # trim leading
               x="${x%"${x##*[![:space:]]}"}"   # trim trailing
               [[ "$x" == "windows" || "$x" == "microbench" || -z "$x" ]] && continue
-              # distributed suites are dispatched to _linux_distributed.yml
+              # distributed suites are dispatched to _test-distributed.yml
               if [[ "$filter_distributed" == "drop" && "$x" == *distributed* ]]; then continue; fi
               if [[ "$filter_distributed" == "only" && "$x" != *distributed* ]]; then continue; fi
               json+="${sep}\"${x}\""
@@ -128,7 +128,7 @@ jobs:
       contents: read
       checks: write
     secrets: inherit
-    uses: ./.github/workflows/_linux_build.yml
+    uses: ./.github/workflows/_build.yml
     with:
       runner: ${{ inputs.runner }}
       python: ${{ inputs.python }}
@@ -147,7 +147,7 @@ jobs:
       fail-fast: false
       matrix:
         ut_name: ${{ fromJSON(needs.tests-matrix.outputs.ut_json) }}
-    uses: ./.github/workflows/_linux_ut.yml
+    uses: ./.github/workflows/_test-ut.yml
     with:
       runner: ${{ inputs.runner }}
       pytorch: ${{ inputs.pytorch }}
@@ -167,7 +167,7 @@ jobs:
       fail-fast: false
       matrix:
         ut_name: ${{ fromJSON(needs.tests-matrix.outputs.distributed_json) }}
-    uses: ./.github/workflows/_linux_distributed.yml
+    uses: ./.github/workflows/_test-distributed.yml
     with:
       runner: ${{ inputs.runner }}
       pytorch: ${{ inputs.pytorch }}
@@ -187,7 +187,7 @@ jobs:
       fail-fast: false
       matrix:
         suite: ${{ fromJSON(needs.tests-matrix.outputs.e2e_json) }}
-    uses: ./.github/workflows/_linux_e2e.yml
+    uses: ./.github/workflows/_test-e2e.yml
     with:
       runner: ${{ inputs.runner }}
       pytorch: ${{ inputs.pytorch }}
@@ -210,7 +210,7 @@ jobs:
       issues: write
       actions: read
     secrets: inherit
-    uses: ./.github/workflows/_linux_op_benchmark.yml
+    uses: ./.github/workflows/_test-microbench.yml
     with:
       runner: ${{ inputs.runner }}
       pytorch: ${{ inputs.pytorch }}
@@ -220,7 +220,7 @@ jobs:
   windows-ut:
     if: contains(inputs.ut, 'windows')
     secrets: inherit
-    uses: ./.github/workflows/_windows_ut.yml
+    uses: ./.github/workflows/_test-ut-windows.yml
     with:
       ut: 'op_extended,test_xpu,op_ut_windows'
       python: ${{ inputs.python }}

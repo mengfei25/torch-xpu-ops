@@ -29,7 +29,7 @@ on:
         description: >-
           UT scope: op_regression, op_regression_dev1, op_extended,
           op_ut, skipped_ut, torch_xpu, basic, xpu_profiling, op_p0.
-          Note: xpu_distributed runs in _linux_distributed.yml.
+          Note: xpu_distributed runs in _test-distributed.yml.
       category:
         type: string
         default: default

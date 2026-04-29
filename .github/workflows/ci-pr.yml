@@ -56,7 +56,7 @@ jobs:
               - 'src/xccl/CMakeLists.txt'
               - 'src/ATen/CMakeLists.txt'
               - 'src/CMakeLists.txt'
-              - '.github/workflows/_windows_ut.yml'
+              - '.github/workflows/_test-ut-windows.yml'
 
       - name: Compute ut and e2e suite lists
         id: matrix
@@ -101,7 +101,7 @@ jobs:
       checks: write
       issues: write
     secrets: inherit
-    uses: ./.github/workflows/_test_call.yml
+    uses: ./.github/workflows/_test-suite.yml
     with:
       runner: pvc_rolling
       pytorch: ${{ contains(github.event.pull_request.labels.*.name, 'disable_build') && 'nightly_wheel' || github.base_ref }}

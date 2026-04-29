@@ -73,7 +73,7 @@ jobs:
       checks: write
       issues: write
     secrets: inherit
-    uses: ./.github/workflows/_test_call.yml
+    uses: ./.github/workflows/_test-suite.yml
     with:
       runner: ${{ needs.get-runner.outputs.runner_id }}
       pytorch: ${{ inputs.pytorch }}
@@ -94,7 +94,7 @@ jobs:
       checks: write
       issues: write
     secrets: inherit
-    uses: ./.github/workflows/_test_call.yml
+    uses: ./.github/workflows/_test-suite.yml
     with:
       runner: ${{ needs.get-runner.outputs.runner_id }}
       pytorch: ${{ inputs.pytorch }}
