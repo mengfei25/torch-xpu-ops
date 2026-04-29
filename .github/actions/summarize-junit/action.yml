@@ -1,0 +1,59 @@
+name: Summarize JUnit XML
+description: >-
+  Parse a JUnit XML file with .github/scripts/parse-junitxml.py and emit
+  Stats / Failed / Skipped sections to the GitHub step summary. Best-effort:
+  parsing errors do not fail the step.
+
+inputs:
+  report:
+    required: true
+    description: Path to the JUnit XML file.
+  parser:
+    required: false
+    default: ${{ github.workspace }}/torch-xpu-ops/.github/scripts/parse-junitxml.py
+    description: Path to parse-junitxml.py.
+  title:
+    required: false
+    default: 'Test Results'
+    description: H3 heading used in the step summary.
+  fail-on-failure:
+    required: false
+    default: 'false'
+    description: When 'true', fail the step if any test failed or errored.
+
+runs:
+  using: composite
+  steps:
+    - name: Emit step summary
+      shell: bash {0}
+      env:
+        REPORT: ${{ inputs.report }}
+        PARSER: ${{ inputs.parser }}
+        TITLE: ${{ inputs.title }}
+        FAIL_ON: ${{ inputs.fail-on-failure }}
+      run: |
+        if [[ ! -f "${REPORT}" ]]; then
+          echo "::warning::no JUnit report at ${REPORT}"
+          exit 0
+        fi
+        if [[ ! -f "${PARSER}" ]]; then
+          echo "::warning::parse-junitxml.py not found at ${PARSER}"
+          exit 0
+        fi
+
+        if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+          {
+            echo "### ${TITLE} - Results"
+            python "${PARSER}" "${REPORT}" --stats || true
+            echo "### ${TITLE} - Failed"
+            python "${PARSER}" "${REPORT}" --errors --failed || true
+            echo "### ${TITLE} - Skipped"
+            python "${PARSER}" "${REPORT}" --skipped || true
+          } >> "${GITHUB_STEP_SUMMARY}"
+        fi
+
+        if [[ "${FAIL_ON}" == "true" ]]; then
+          # parse-junitxml.py prints a non-zero exit when there are failures
+          # under --strict (project convention). Re-run for the gating signal.
+          python "${PARSER}" "${REPORT}" --errors --failed --strict || exit 1
+        fi
