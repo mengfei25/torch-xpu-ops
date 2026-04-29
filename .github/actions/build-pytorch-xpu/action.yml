@@ -1,0 +1,80 @@
+name: build-pytorch-xpu
+description: |
+  Build PyTorch with XPU support via `.github/scripts/build.sh`, capture a
+  timestamped build log, and verify exactly one `torch-*.whl` was produced.
+
+inputs:
+  build-dir:
+    description: Directory passed to `build.sh --WORKSPACE` and where the wheel lands.
+    required: true
+  pytorch:
+    description: PyTorch spec (`commit`, `branch`, `repo@commit`).
+    required: true
+  torch-xpu-ops:
+    description: torch-xpu-ops spec or `pinned`.
+    required: false
+    default: ''
+  component:
+    description: Component to override (e.g. `onednn`, `sycltla`, `oneapi`).
+    required: false
+    default: ''
+  component-version:
+    description: Component spec/URL.
+    required: false
+    default: ''
+  gcc-version:
+    description: gcc-toolset version to source on RH-based images.
+    required: false
+    default: '13'
+  torch-xpu-ops-src:
+    description: Path to the torch-xpu-ops checkout (where `build.sh` lives).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Build PyTorch XPU
+      shell: bash
+      env:
+        BUILD_DIR: ${{ inputs.build-dir }}
+        TORCH_XPU_OPS_SRC: ${{ inputs.torch-xpu-ops-src }}
+        PYTORCH_SPEC: ${{ inputs.pytorch }}
+        TORCH_XPU_OPS_SPEC: ${{ inputs.torch-xpu-ops }}
+        COMPONENT: ${{ inputs.component }}
+        COMPONENT_VERSION: ${{ inputs.component-version }}
+        GCC_VERSION: ${{ inputs.gcc-version }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC1091
+        if [[ -f "/opt/rh/gcc-toolset-${GCC_VERSION}/enable" ]]; then
+          source "/opt/rh/gcc-toolset-${GCC_VERSION}/enable"
+        fi
+        # shellcheck disable=SC1091
+        source "${TORCH_XPU_OPS_SRC}/.github/scripts/env.sh" || true
+
+        mkdir -p "${BUILD_DIR}"
+        log="${BUILD_DIR}/build_pytorch_$(date +%Y%m%d%H%M%S).log"
+
+        "${TORCH_XPU_OPS_SRC}/.github/scripts/build.sh" \
+            --WORKSPACE="${BUILD_DIR}/" \
+            --PYTORCH="${PYTORCH_SPEC}" \
+            --TORCH_XPU_OPS="${TORCH_XPU_OPS_SPEC}" \
+            --COMPONENT="${COMPONENT}" \
+            --COMPONENT_COMMIT="${COMPONENT_VERSION}" \
+          2>&1 | tee "${log}"
+
+        wheel_count=$(find "${BUILD_DIR}/" -maxdepth 1 -name "torch-*.whl" -type f | wc -l)
+        if [[ "${wheel_count}" -ne 1 ]]; then
+          echo "::error title=PyTorch wheel build failed::Expected 1 torch wheel, found ${wheel_count}"
+          ls -la "${BUILD_DIR}/" || true
+          exit 1
+        fi
+
+        wheel=$(find "${BUILD_DIR}/" -maxdepth 1 -name "torch-*.whl" -type f -printf '%f\n' | head -1)
+        {
+          echo "## PyTorch build"
+          echo
+          echo "- spec: \`${PYTORCH_SPEC}\`"
+          echo "- torch-xpu-ops: \`${TORCH_XPU_OPS_SPEC}\`"
+          echo "- wheel: \`${wheel}\`"
+        } >> "${GITHUB_STEP_SUMMARY:-/dev/null}" || true

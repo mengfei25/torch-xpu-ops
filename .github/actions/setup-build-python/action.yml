@@ -1,0 +1,61 @@
+name: setup-build-python
+description: |
+  Locate a manylinux2_28 `cp<ver>-cp<ver>` Python interpreter under `/opt/python`
+  and create a fresh virtualenv at `${VENV_DIR}` with up-to-date build tooling.
+
+inputs:
+  python-version:
+    description: Python version, e.g. `3.10`.
+    required: true
+  venv-dir:
+    description: Where to create the build venv.
+    required: false
+    default: /tmp/xpu-tool/myvenv
+  setuptools-spec:
+    description: setuptools pin (passed verbatim to `pip install`).
+    required: false
+    default: 'setuptools<=81'
+
+outputs:
+  python:
+    description: Absolute path to the venv's Python interpreter.
+    value: ${{ steps.setup.outputs.python }}
+
+runs:
+  using: composite
+  steps:
+    - name: Create build venv
+      id: setup
+      shell: bash
+      env:
+        PY_VER: ${{ inputs.python-version }}
+        VENV_DIR: ${{ inputs.venv-dir }}
+        SETUPTOOLS_SPEC: ${{ inputs.setuptools-spec }}
+      run: |
+        set -euo pipefail
+        rm -rf "${VENV_DIR}"
+
+        py_tag="cp${PY_VER/./}-cp${PY_VER/./}"
+        py_bin=""
+        for dir in /opt/python/${py_tag}*; do
+          if [[ -x "${dir}/bin/python" ]]; then
+            py_bin="${dir}/bin/python"
+            break
+          fi
+        done
+        if [[ -z "${py_bin}" ]]; then
+          echo "::error title=Python not found::Python ${PY_VER} (tag ${py_tag}) not found under /opt/python"
+          ls -1 /opt/python || true
+          exit 1
+        fi
+
+        echo "Found interpreter: ${py_bin}"
+        "${py_bin}" -m venv "${VENV_DIR}"
+
+        # shellcheck disable=SC1090
+        source "${VENV_DIR}/bin/activate"
+        pip install --quiet -U pip wheel "${SETUPTOOLS_SPEC}"
+
+        echo "python=${VENV_DIR}/bin/python" >> "${GITHUB_OUTPUT}"
+        echo "${VENV_DIR}/bin" >> "${GITHUB_PATH}"
+        python --version

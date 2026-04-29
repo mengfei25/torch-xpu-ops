@@ -1,0 +1,132 @@
+name: build-triton-xpu
+description: |
+  Provide a `triton-xpu` wheel: first try to download a pre-built nightly wheel
+  matching the requested commit short hash; otherwise build from source via
+  `pytorch/.github/scripts/build_triton_wheel.py`. The resulting wheel is
+  copied to `build-dir` and pip-installed.
+
+inputs:
+  pytorch-src:
+    description: Path to PyTorch source (used for `build_triton_wheel.py` and the default commit pin).
+    required: true
+  build-dir:
+    description: Destination directory for the wheel and build log.
+    required: true
+  triton-spec:
+    description: |
+      `repo@commit` or just `commit`. When empty, the default repo is used and
+      the commit is read from `pytorch-src/.ci/docker/ci_commit_pins/triton-xpu.txt`.
+    required: false
+    default: ''
+  default-repo:
+    description: Default Triton repository (`owner/repo`) when no `@` is given.
+    required: false
+    default: intel/intel-xpu-backend-for-triton
+  index-url:
+    description: pip index URL for pre-built nightly wheels.
+    required: false
+    default: https://download.pytorch.org/whl/nightly/xpu
+  gcc-version:
+    description: gcc-toolset version to source on RH-based images.
+    required: false
+    default: '13'
+
+runs:
+  using: composite
+  steps:
+    - name: Build or fetch Triton (XPU)
+      shell: bash
+      env:
+        PYTORCH_SRC: ${{ inputs.pytorch-src }}
+        BUILD_DIR: ${{ inputs.build-dir }}
+        TRITON_SPEC: ${{ inputs.triton-spec }}
+        DEFAULT_REPO: ${{ inputs.default-repo }}
+        INDEX_URL: ${{ inputs.index-url }}
+        GCC_VERSION: ${{ inputs.gcc-version }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC1091
+        if [[ -f "/opt/rh/gcc-toolset-${GCC_VERSION}/enable" ]]; then
+          source "/opt/rh/gcc-toolset-${GCC_VERSION}/enable"
+        fi
+
+        # Resolve repo + commit
+        if [[ -n "${TRITON_SPEC}" ]]; then
+          if [[ "${TRITON_SPEC}" == *"@"* ]]; then
+            repo="${TRITON_SPEC%%@*}"
+            commit="${TRITON_SPEC##*@}"
+          else
+            repo="${DEFAULT_REPO}"
+            commit="${TRITON_SPEC}"
+          fi
+        else
+          repo="${DEFAULT_REPO}"
+          commit="$(cat "${PYTORCH_SRC}/.ci/docker/ci_commit_pins/triton-xpu.txt" 2>/dev/null || echo main)"
+        fi
+        short="${commit:0:7}"
+        echo "Triton: ${repo} @ ${commit} (short ${short})"
+
+        # 1) Try a pre-built nightly wheel matching the short commit.
+        wheel=""
+        versions=$(
+          pip index versions --index-url "${INDEX_URL}" --pre triton-xpu 2>/dev/null \
+            | grep -oE 'triton-xpu==[0-9a-zA-Z.-]+' || true
+        )
+        match=""
+        while IFS= read -r v; do
+          [[ -z "${v}" ]] && continue
+          if [[ "${v}" == *"${short}"* ]]; then
+            match="${v#*==}"
+            break
+          fi
+        done <<< "${versions}"
+
+        if [[ -n "${match}" ]]; then
+          echo "Using pre-built triton-xpu==${match}"
+          pip download --no-deps --index-url "${INDEX_URL}" --pre \
+            "triton-xpu==${match}" --dest "${BUILD_DIR}/"
+          wheel=$(find "${BUILD_DIR}" -maxdepth 1 -name "triton*.whl" -type f | head -1)
+        else
+          echo "No matching pre-built wheel; building from source"
+          if command -v dnf &>/dev/null; then
+            dnf install -y zlib-devel || true
+          fi
+          pip install --quiet cmake ninja pybind11
+
+          version=$(
+            curl -sSL "https://raw.githubusercontent.com/${repo}/${commit}/python/triton/__init__.py" 2>/dev/null \
+              | grep '__version__' | head -n1 | awk -F"'" '{print $2}' || echo unknown
+          )
+          echo "Triton version: ${version}"
+
+          cd "${PYTORCH_SRC}"
+          # Repoint the build helper at the requested fork.
+          sed -i "s+intel/intel-xpu-backend-for-triton+${repo}+g" .github/scripts/build_triton_wheel.py
+
+          log="${BUILD_DIR}/build_triton_${commit}.log"
+          python .github/scripts/build_triton_wheel.py \
+            --device xpu \
+            --commit-hash "${commit}" \
+            --triton-version "${version}" \
+            2>&1 | tee "${log}"
+
+          wheel=$(find . -name "triton_xpu-*.whl" -type f | head -1)
+          if [[ -z "${wheel}" ]]; then
+            echo "::error title=Triton build failed::No wheel produced"
+            exit 1
+          fi
+          cp "${wheel}" "${BUILD_DIR}/"
+          wheel="${BUILD_DIR}/$(basename "${wheel}")"
+        fi
+
+        if [[ -n "${wheel}" && -f "${wheel}" ]]; then
+          pip install "${wheel}"
+        fi
+
+        {
+          echo "## Triton build"
+          echo
+          echo "- repo: \`${repo}\`"
+          echo "- commit: \`${commit}\`"
+          [[ -n "${wheel}" ]] && echo "- wheel: \`$(basename "${wheel}")\`"
+        } >> "${GITHUB_STEP_SUMMARY:-/dev/null}" || true

@@ -1,0 +1,68 @@
+name: verify-pytorch-build
+description: |
+  Run `import` smoke tests for torch / triton / torchvision / torchaudio,
+  list installed XPU-relevant packages, and emit a structured GitHub step
+  summary. Fails the step on any import error.
+
+inputs:
+  build-dir:
+    description: Directory where wheels were staged (listed in the summary).
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Verify PyTorch + Triton + domain libraries
+      shell: bash
+      env:
+        BUILD_DIR: ${{ inputs.build-dir }}
+      run: |
+        set -uo pipefail
+        rc=0
+
+        check() {
+          local name="$1"; shift
+          local expr="$1"
+          local out
+          if out=$(python -c "${expr}" 2>&1); then
+            printf '  %-12s OK   %s\n' "${name}" "${out}"
+            echo "| ${name} | ✅ | \`${out}\` |" >> /tmp/_verify_rows
+          else
+            printf '  %-12s FAIL %s\n' "${name}" "${out}" >&2
+            echo "| ${name} | ❌ | \`${out}\` |" >> /tmp/_verify_rows
+            rc=1
+          fi
+        }
+
+        : > /tmp/_verify_rows
+
+        check torch       "import torch; print(torch.__version__)"
+        check 'torch.xpu'  "import torch; print('devices=' + str(torch.xpu.device_count()))"
+        check triton      "import triton; print(triton.__version__)"
+        check torchvision "import torchvision; print(torchvision.__version__)"
+        check torchaudio  "import torchaudio; print(torchaudio.__version__)"
+
+        echo "Installed packages (filtered):"
+        pip list 2>/dev/null | grep -iE 'torch|triton|intel|xpu' || true
+
+        if [[ -n "${BUILD_DIR}" && -d "${BUILD_DIR}" ]]; then
+          echo "Wheels in ${BUILD_DIR}:"
+          find "${BUILD_DIR}" -maxdepth 1 -name '*.whl' -type f -exec basename {} \; | sort
+        fi
+
+        {
+          echo "## Build verification"
+          echo
+          echo "| Component | Status | Detail |"
+          echo "|-----------|--------|--------|"
+          cat /tmp/_verify_rows
+          if [[ -n "${BUILD_DIR}" && -d "${BUILD_DIR}" ]]; then
+            echo
+            echo "### Wheels"
+            echo
+            find "${BUILD_DIR}" -maxdepth 1 -name '*.whl' -type f -printf '- `%f`\n' | sort
+          fi
+        } >> "${GITHUB_STEP_SUMMARY:-/dev/null}" || true
+
+        exit "${rc}"

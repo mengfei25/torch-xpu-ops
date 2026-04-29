@@ -1,0 +1,62 @@
+name: setup-oneapi
+description: |
+  Install Intel oneAPI DLE from a remote installer URL and export
+  `XPU_ONEAPI_PATH` for downstream steps.
+
+inputs:
+  installer-url:
+    description: |
+      URL of the oneAPI offline installer (`*.sh`). When empty, the action
+      is a no-op and existing `XPU_ONEAPI_PATH` (if any) is preserved.
+    required: false
+    default: ''
+  install-dir:
+    description: Target installation directory.
+    required: false
+    default: /opt/intel/oneapi
+  remove-existing:
+    description: Whether to remove a pre-existing oneAPI tree before installing.
+    required: false
+    default: 'true'
+
+outputs:
+  path:
+    description: Absolute path to the oneAPI install (`XPU_ONEAPI_PATH`).
+    value: ${{ steps.install.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install oneAPI
+      id: install
+      shell: bash
+      env:
+        URL: ${{ inputs.installer-url }}
+        INSTALL_DIR: ${{ inputs.install-dir }}
+        REMOVE_EXISTING: ${{ inputs.remove-existing }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${URL}" ]]; then
+          echo "No installer-url provided; skipping oneAPI install."
+          echo "path=${XPU_ONEAPI_PATH:-}" >> "${GITHUB_OUTPUT}"
+          exit 0
+        fi
+
+        if [[ "${REMOVE_EXISTING}" == "true" ]]; then
+          echo "Removing existing oneAPI installations..."
+          rm -rf ~/intel ~/.intel "${HOME}/intel" /opt/intel || true
+        fi
+
+        echo "Downloading oneAPI installer from ${URL}"
+        installer="$(mktemp --suffix=.sh)"
+        trap 'rm -f "${installer}"' EXIT
+        wget -q -O "${installer}" "${URL}"
+
+        echo "Removing any prior install in ${INSTALL_DIR}"
+        bash "${installer}" -a -s --eula accept --action remove || true
+
+        echo "Installing oneAPI to ${INSTALL_DIR}"
+        bash "${installer}" -a -s --eula accept --action install --install-dir "${INSTALL_DIR}"
+
+        echo "XPU_ONEAPI_PATH=${INSTALL_DIR}" >> "${GITHUB_ENV}"
+        echo "path=${INSTALL_DIR}" >> "${GITHUB_OUTPUT}"
