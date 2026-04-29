@@ -85,14 +85,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      ut_json:  ${{ steps.matrix.outputs.ut_json }}
-      e2e_json: ${{ steps.matrix.outputs.e2e_json }}
+      ut_json:           ${{ steps.matrix.outputs.ut_json }}
+      e2e_json:          ${{ steps.matrix.outputs.e2e_json }}
+      distributed_json:  ${{ steps.matrix.outputs.distributed_json }}
     steps:
       - name: Build matrix JSON arrays
         id: matrix
         run: |
           csv_to_json() {
-            local input="$1"
+            local input="$1" filter_distributed="${2:-keep}"
             if [ -z "$input" ]; then
               echo "[]"
               return
@@ -103,6 +104,9 @@ jobs:
               x="${x#"${x%%[![:space:]]*}"}"   # trim leading
               x="${x%"${x##*[![:space:]]}"}"   # trim trailing
               [[ "$x" == "windows" || "$x" == "microbench" || -z "$x" ]] && continue
+              # distributed suites are dispatched to _linux_distributed.yml
+              if [[ "$filter_distributed" == "drop" && "$x" == *distributed* ]]; then continue; fi
+              if [[ "$filter_distributed" == "only" && "$x" != *distributed* ]]; then continue; fi
               json+="${sep}\"${x}\""
               sep=","
             done
@@ -110,11 +114,13 @@ jobs:
             echo "$json"
           }
 
-          ut_json="$(csv_to_json "${{ inputs.ut }}")"
+          ut_json="$(csv_to_json "${{ inputs.ut }}" drop)"
+          distributed_json="$(csv_to_json "${{ inputs.ut }}" only)"
           e2e_json="$(csv_to_json "${{ inputs.suite }}")"
 
-          echo "ut_json=${ut_json}"   >> "$GITHUB_OUTPUT"
-          echo "e2e_json=${e2e_json}" >> "$GITHUB_OUTPUT"
+          echo "ut_json=${ut_json}"                   >> "$GITHUB_OUTPUT"
+          echo "distributed_json=${distributed_json}" >> "$GITHUB_OUTPUT"
+          echo "e2e_json=${e2e_json}"                 >> "$GITHUB_OUTPUT"
 
   # Build
   linux-build:
@@ -142,6 +148,26 @@ jobs:
       matrix:
         ut_name: ${{ fromJSON(needs.tests-matrix.outputs.ut_json) }}
     uses: ./.github/workflows/_linux_ut.yml
+    with:
+      runner: ${{ inputs.runner }}
+      pytorch: ${{ inputs.pytorch }}
+      torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
+      python: ${{ inputs.python }}
+      ut: ${{ matrix.ut_name }}
+      category: ${{ inputs.category }}
+      component: ${{ inputs.component }}
+      component_version: ${{ inputs.component_version }}
+
+  # Linux Distributed Tests (baremetal, separate workflow)
+  linux-distributed:
+    needs: [linux-build, tests-matrix]
+    if: needs.tests-matrix.outputs.distributed_json != '[]'
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        ut_name: ${{ fromJSON(needs.tests-matrix.outputs.distributed_json) }}
+    uses: ./.github/workflows/_linux_distributed.yml
     with:
       runner: ${{ inputs.runner }}
       pytorch: ${{ inputs.pytorch }}
