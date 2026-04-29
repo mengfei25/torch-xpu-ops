@@ -9,7 +9,8 @@ on:
       - main
     paths:
       - '.github/scripts/parse-junitxml.py'
-      - '.github/actions/print-environment/action.yml'
+      - '.github/actions/collect-environment/action.yml'
+      - '.ci/scripts/collect/**'
       - '.github/actions/summarize-junit/action.yml'
       - '.github/workflows/_linux_accelerate.yml'
       - '.ci/scripts/accelerate/**'
@@ -178,9 +179,9 @@ jobs:
           parser: ${{ github.workspace }}/torch-xpu-ops/.github/scripts/parse-junitxml.py
           title: 'Accelerate'
 
-      - name: Print environment
+      - name: Collect environment
         if: ${{ ! cancelled() }}
-        uses: ./torch-xpu-ops/.github/actions/print-environment
+        uses: ./torch-xpu-ops/.github/actions/collect-environment
         with:
           pip_packages: 'accelerate transformers'
 
