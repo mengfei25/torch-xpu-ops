@@ -109,7 +109,7 @@ jobs:
       checks: write
       issues: write
     secrets: inherit
-    uses: ./.github/workflows/_test_call.yml
+    uses: ./.github/workflows/_test-suite.yml
     with:
       runner: ${{ contains(inputs.runner, 'BMG') && 'bmg-test' || 'pvc_rolling' }}
       pytorch: ${{ inputs.pytorch }}
@@ -136,7 +136,7 @@ jobs:
       checks: write
       issues: write
     secrets: inherit
-    uses: ./.github/workflows/_test_call.yml
+    uses: ./.github/workflows/_test-suite.yml
     strategy:
       matrix:
         pytorch: [main, nightly_wheel]

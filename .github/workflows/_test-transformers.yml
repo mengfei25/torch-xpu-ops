@@ -11,7 +11,7 @@ on:
       - '.github/scripts/check-transformers.py'
       - '.github/scripts/spec.py'
       - '.github/actions/resolve-transformers-matrix/action.yml'
-      - '.github/workflows/_linux_transformers.yml'
+      - '.github/workflows/_test-transformers.yml'
       - '.ci/scripts/transformers/**'
       - '.ci/config/transformers_matrix.yaml'
   workflow_dispatch:

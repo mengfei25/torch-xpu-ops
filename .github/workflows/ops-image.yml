@@ -7,7 +7,7 @@ on:
     paths:
       - '.ci/docker/common/install_xpu.sh'
       - '.ci/docker/ubuntu/Dockerfile'
-      - '.github/workflows/_linux_test_image.yml'
+      - '.github/workflows/ops-image.yml'
   workflow_dispatch:
     inputs:
       runner:

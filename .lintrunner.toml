@@ -566,7 +566,7 @@ command = [
 #    # '.github/actions/**/*.yaml',
 #]
 #exclude_patterns = [
-#    '.github/workflows/_windows_ut.yml',
+#    '.github/workflows/_test-ut-windows.yml',
 #]
 #command = [
 #    'python3',
@@ -677,7 +677,7 @@ command = [
 [[linter]]
 code = 'WORKFLOWSYNC'
 include_patterns = [
-    '.github/workflows/pull.yml',
+    '.github/workflows/ci-pr.yml',
     '.github/workflows/trunk.yml',
     '.github/workflows/periodic.yml',
     '.github/workflows/mac-mps.yml',
