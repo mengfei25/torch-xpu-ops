@@ -1,0 +1,133 @@
+name: summarize-e2e
+description: |
+  Scan an Inductor `inductor_log/` directory for accuracy/performance CSVs
+  produced by `run_benchmark.py`, classify each row, and emit:
+    - a per-CSV counts table to `$GITHUB_STEP_SUMMARY`,
+    - a "failed models" list (collapsed `<details>` block),
+    - an `e2e-summary.md` artifact in the log dir.
+
+  The action is best-effort: parsing errors do not fail the step.
+
+inputs:
+  log-dir:
+    description: Directory containing inductor CSV logs (recursive scan).
+    required: false
+    default: ${{ github.workspace }}/pytorch/inductor_log
+  fail-on-failure:
+    description: Whether to exit non-zero when any failed model is found.
+    required: false
+    default: 'false'
+
+outputs:
+  total:
+    description: Total result rows across all CSVs.
+    value: ${{ steps.summarize.outputs.total }}
+  passed:
+    description: Number of passed rows.
+    value: ${{ steps.summarize.outputs.passed }}
+  failed:
+    description: Number of failed rows.
+    value: ${{ steps.summarize.outputs.failed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Summarize
+      id: summarize
+      shell: bash
+      env:
+        LOG_DIR: ${{ inputs.log-dir }}
+        FAIL_ON_FAILURE: ${{ inputs.fail-on-failure }}
+      run: |
+        set -uo pipefail
+        python3 - "$LOG_DIR" >> "${GITHUB_OUTPUT}" <<'PY'
+        import csv, os, re, sys
+        from pathlib import Path
+
+        log_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "")
+        if not log_dir.is_dir():
+            print(f"total=0\npassed=0\nfailed=0")
+            print(f"::warning title=No E2E logs::{log_dir} not found", file=sys.stderr)
+            sys.exit(0)
+
+        csv_files = sorted(log_dir.rglob("inductor-results-*.csv"))
+
+        def classify(row, scenario):
+            if scenario == "accuracy":
+                acc = row.get("accuracy", "").strip().lower()
+                if acc in ("pass", "pass_due_to_skip"):
+                    return "pass"
+                return "fail" if acc else "unknown"
+            # performance: speedup like "1.23x" → pass, "0" / fallback → fail
+            spd = row.get("speedup", "").strip()
+            if re.fullmatch(r"[0-9]+(\.[0-9]+)?x?", spd) and spd not in ("0", "0.0", "0.00"):
+                return "pass"
+            return "fail" if spd else "unknown"
+
+        per_file = []
+        all_failed = []
+        total = passed = failed = 0
+
+        for f in csv_files:
+            try:
+                with f.open(newline="") as fh:
+                    rows = list(csv.DictReader(fh))
+            except Exception as e:
+                print(f"::warning title=Cannot read CSV::{f.name}: {e}", file=sys.stderr)
+                continue
+            t = p = ff = 0
+            for row in rows:
+                scenario = (row.get("scenario") or "").strip()
+                status = classify(row, scenario)
+                t += 1
+                if status == "pass":
+                    p += 1
+                elif status == "fail":
+                    ff += 1
+                    all_failed.append((
+                        row.get("suite", ""), row.get("dtype", ""),
+                        row.get("mode", ""), scenario,
+                        row.get("name", ""),
+                        row.get("accuracy") or row.get("speedup") or "",
+                    ))
+            per_file.append((f.relative_to(log_dir), t, p, ff))
+            total += t; passed += p; failed += ff
+
+        # Step output
+        print(f"total={total}")
+        print(f"passed={passed}")
+        print(f"failed={failed}")
+
+        # Step summary
+        sumpath = os.environ.get("GITHUB_STEP_SUMMARY")
+        if sumpath:
+            with open(sumpath, "a") as out:
+                out.write("## E2E summary\n\n")
+                if total == 0:
+                    out.write("_No result rows found._\n")
+                else:
+                    pct = (passed * 100 // total) if total else 0
+                    out.write(f"**{passed}/{total} passed ({pct}%)** — {failed} failed.\n\n")
+                    out.write("| File | Total | Passed | Failed |\n|---|---:|---:|---:|\n")
+                    for name, t, p, ff in per_file:
+                        out.write(f"| `{name}` | {t} | {p} | {ff} |\n")
+                if all_failed:
+                    out.write("\n<details><summary>Failed models</summary>\n\n")
+                    out.write("| suite | dtype | mode | scenario | model | result |\n")
+                    out.write("|---|---|---|---|---|---|\n")
+                    for s, d, m, sc, n, r in all_failed[:200]:
+                        out.write(f"| {s} | {d} | {m} | {sc} | {n} | `{r}` |\n")
+                    if len(all_failed) > 200:
+                        out.write(f"\n_…and {len(all_failed) - 200} more_\n")
+                    out.write("\n</details>\n")
+
+        # Markdown artifact
+        try:
+            with (log_dir / "e2e-summary.md").open("w") as out:
+                out.write(f"# E2E summary\n\nTotal: {total}, Passed: {passed}, Failed: {failed}\n")
+        except Exception:
+            pass
+
+        if os.environ.get("FAIL_ON_FAILURE") == "true" and failed:
+            sys.exit(1)
+        PY

@@ -1,0 +1,68 @@
+# E2E (Inductor dynamo benchmark) test matrix.
+#
+# Schema:
+#   <category>:
+#     <suite>:                # one of: huggingface, timm_models, torchbench, pt2e
+#       dt:        <csv>      # e.g. "float32,bfloat16,float16,amp_bf16,amp_fp16"
+#       mode:      <csv>      # "inference,training"
+#       scenario:  <csv>      # "accuracy,performance"
+#     # for pt2e the keys are dt/scenario only (no mode).
+#
+# Categories:
+#   pr        On every pull request (smallest matrix).
+#   nightly   Weekday cron.
+#   weekly    Saturday cron (largest matrix).
+#   ondemand  workflow_dispatch — caller passes through dt/mode/scenario.
+#   target    Component-comparison (target side).
+#   baseline  Component-comparison (baseline side).
+#
+# `ondemand` does not list dt/mode/scenario: those come from workflow inputs.
+# `target`/`baseline` use a fixed two-pass matrix defined in the workflow.
+
+pr:
+  huggingface:
+    dt: bfloat16,float16
+    mode: training
+    scenario: accuracy,performance
+  timm_models:
+    dt: bfloat16
+    mode: training
+    scenario: accuracy,performance
+  torchbench:
+    dt: bfloat16
+    mode: training
+    scenario: accuracy,performance
+
+nightly:
+  huggingface:
+    dt: float32,bfloat16,float16,amp_bf16,amp_fp16
+    mode: inference,training
+    scenario: accuracy,performance
+  timm_models:
+    dt: float16,bfloat16
+    mode: training
+    scenario: accuracy,performance
+  torchbench:
+    dt: float16,bfloat16
+    mode: training
+    scenario: accuracy,performance
+  pt2e:
+    dt: float32,int8
+    scenario: accuracy,performance
+
+weekly:
+  huggingface:
+    dt: float32,bfloat16,float16,amp_bf16,amp_fp16
+    mode: inference,training
+    scenario: accuracy,performance
+  timm_models:
+    dt: float32,bfloat16,float16,amp_bf16,amp_fp16
+    mode: inference,training
+    scenario: accuracy,performance
+  torchbench:
+    dt: float32,bfloat16,float16,amp_bf16,amp_fp16
+    mode: inference,training
+    scenario: accuracy,performance
+  pt2e:
+    dt: float32,int8
+    scenario: accuracy,performance

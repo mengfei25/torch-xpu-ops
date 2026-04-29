@@ -1,0 +1,118 @@
+name: resolve-e2e-matrix
+description: |
+  Resolve the (dt, mode, scenario) matrix for an E2E suite from
+  `.ci/config/e2e_matrix.yaml`. Returns empty outputs when the suite is not
+  configured for the given category — callers should skip the suite in that
+  case.
+
+  For category `ondemand`, all three values come from inputs (`override-*`).
+  For `target` / `baseline`, the workflow drives the matrix directly.
+
+inputs:
+  category:
+    description: One of `pr`, `nightly`, `weekly`, `ondemand`, `target`, `baseline`.
+    required: true
+  suite:
+    description: One of `huggingface`, `timm_models`, `torchbench`, `pt2e`.
+    required: true
+  config:
+    description: Path to the YAML config.
+    required: false
+    default: .ci/config/e2e_matrix.yaml
+  override-dt:
+    description: Used as `dt` for `ondemand`/`target`/`baseline`.
+    required: false
+    default: ''
+  override-mode:
+    description: Used as `mode` for `ondemand`/`target`/`baseline`.
+    required: false
+    default: ''
+  override-scenario:
+    description: Used as `scenario` for `ondemand`/`target`/`baseline`.
+    required: false
+    default: ''
+
+outputs:
+  enabled:
+    description: '"true" if the suite should run for this category, else "false".'
+    value: ${{ steps.resolve.outputs.enabled }}
+  dt:
+    description: Resolved comma-separated dtypes.
+    value: ${{ steps.resolve.outputs.dt }}
+  mode:
+    description: Resolved comma-separated modes (empty for pt2e).
+    value: ${{ steps.resolve.outputs.mode }}
+  scenario:
+    description: Resolved comma-separated scenarios.
+    value: ${{ steps.resolve.outputs.scenario }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve matrix
+      id: resolve
+      shell: bash
+      env:
+        CATEGORY: ${{ inputs.category }}
+        SUITE: ${{ inputs.suite }}
+        CONFIG: ${{ inputs.config }}
+        OVERRIDE_DT: ${{ inputs.override-dt }}
+        OVERRIDE_MODE: ${{ inputs.override-mode }}
+        OVERRIDE_SCENARIO: ${{ inputs.override-scenario }}
+      run: |
+        set -euo pipefail
+        python3 - <<'PY' >> "${GITHUB_OUTPUT}"
+        import os, sys
+        try:
+            import yaml
+        except ImportError:
+            import subprocess
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "pyyaml"])
+            import yaml
+
+        category = os.environ["CATEGORY"].strip()
+        suite    = os.environ["SUITE"].strip()
+        config   = os.environ["CONFIG"]
+
+        # E2E vs PT2E filter (override-driven categories must drop dtypes the
+        # suite cannot run).
+        E2E_DT  = {"float32", "bfloat16", "float16", "amp_bf16", "amp_fp16"}
+        PT2E_DT = {"float32", "int8"}
+
+        def filter_dt(csv: str, suite: str) -> str:
+            allowed = PT2E_DT if suite == "pt2e" else E2E_DT
+            kept = [d.strip() for d in csv.split(",") if d.strip() in allowed]
+            return ",".join(kept)
+
+        def emit(enabled: bool, dt: str = "", mode: str = "", scenario: str = ""):
+            print(f"enabled={'true' if enabled else 'false'}")
+            print(f"dt={dt}")
+            print(f"mode={mode}")
+            print(f"scenario={scenario}")
+
+        # Override-driven categories.
+        if category in ("ondemand", "target", "baseline"):
+            dt = filter_dt(os.environ.get("OVERRIDE_DT", ""), suite)
+            if not dt:
+                emit(False)
+                sys.exit(0)
+            mode = "" if suite == "pt2e" else os.environ.get("OVERRIDE_MODE", "")
+            scenario = os.environ.get("OVERRIDE_SCENARIO", "")
+            emit(True, dt, mode, scenario)
+            sys.exit(0)
+
+        # Config-driven categories.
+        with open(config) as fh:
+            data = yaml.safe_load(fh) or {}
+        bucket = data.get(category, {})
+        suite_cfg = bucket.get(suite)
+        if not suite_cfg:
+            emit(False)
+            sys.exit(0)
+        emit(
+            True,
+            suite_cfg.get("dt", ""),
+            suite_cfg.get("mode", ""),
+            suite_cfg.get("scenario", ""),
+        )
+        PY
