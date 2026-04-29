@@ -10,7 +10,7 @@ on:
       docker_image_name:
         type: string
         default: 'intelgpu/ubuntu-24.04-lts2:2523.40'
-        description: Docker image for test environment
+        description: Docker image for test environment (UT job only)
       pytorch:
         type: string
         default: main
@@ -28,7 +28,7 @@ on:
         required: true
         description: >-
           UT scope: op_regression, op_regression_dev1, op_extended,
-          op_ut, skipped_ut, torch_xpu, basic, xpu_distributed, xpu_profiling
+          op_ut, skipped_ut, torch_xpu, basic, xpu_distributed, xpu_profiling, op_p0
       category:
         type: string
         default: default
@@ -59,7 +59,7 @@ env:
   WORKSPACE: ${{ github.workspace }}
 
 jobs:
-  # Resolve runner
+  # ── Resolve runner ────────────────────────────────────────────────────────
   runner:
     name: get-runner
     runs-on: ${{ inputs.runner }}
@@ -83,7 +83,7 @@ jobs:
         id: runner-info
         uses: ./.github/actions/get-runner
 
-  # Unit tests (container)
+  # ── Unit tests (containerised) ────────────────────────────────────────────
   UT:
     name: ${{ inputs.ut }}
     needs: runner
@@ -138,6 +138,12 @@ jobs:
         with:
           ut_name: ${{ inputs.ut }}
 
+      - name: Summarize results
+        if: ${{ ! cancelled() }}
+        uses: ./.github/actions/summarize-ut
+        with:
+          log-dir: ${{ github.workspace }}/ut_log
+
       - name: Collect UT logs
         id: collect-logs
         if: ${{ ! cancelled() }}
@@ -157,8 +163,9 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # Distributed tests (baremetal)
+  # ── Distributed tests (baremetal, no container) ───────────────────────────
   distributed:
+    name: ${{ inputs.ut }}
     needs: runner
     if: contains(inputs.ut, 'distributed')
     runs-on: ${{ needs.runner.outputs.runner_id }}
@@ -194,6 +201,12 @@ jobs:
         uses: ./.github/actions/linux-uttest
         with:
           ut_name: ${{ inputs.ut }}
+
+      - name: Summarize results
+        if: ${{ ! cancelled() }}
+        uses: ./.github/actions/summarize-ut
+        with:
+          log-dir: ${{ github.workspace }}/ut_log
 
       - name: Collect UT logs
         id: collect-logs

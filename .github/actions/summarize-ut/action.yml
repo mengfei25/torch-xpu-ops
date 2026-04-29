@@ -1,0 +1,161 @@
+name: Summarize UT results
+description: >-
+  Scan ut_log/ for JUnit XML files, classify cases, and emit a step summary
+  with per-suite counts plus a collapsed list of failing tests. Best-effort:
+  parsing errors do not fail the step.
+
+inputs:
+  log-dir:
+    required: false
+    default: ${{ github.workspace }}/ut_log
+    description: Directory containing JUnit XML files (and *_test_error.log).
+  fail-on-failure:
+    required: false
+    default: 'false'
+    description: If 'true', set the step exit code to 1 when any test failed.
+
+outputs:
+  total:
+    value: ${{ steps.scan.outputs.total }}
+  passed:
+    value: ${{ steps.scan.outputs.passed }}
+  failed:
+    value: ${{ steps.scan.outputs.failed }}
+  errored:
+    value: ${{ steps.scan.outputs.errored }}
+  skipped:
+    value: ${{ steps.scan.outputs.skipped }}
+
+runs:
+  using: composite
+  steps:
+    - name: Scan JUnit XMLs
+      id: scan
+      shell: bash -eo pipefail {0}
+      env:
+        LOG_DIR: ${{ inputs.log-dir }}
+        FAIL_ON_FAILURE: ${{ inputs.fail-on-failure }}
+      run: |
+        python3 - <<'PY'
+        import os
+        import sys
+        import glob
+        import xml.etree.ElementTree as ET
+        from collections import defaultdict
+
+        log_dir = os.environ.get("LOG_DIR", "")
+        fail_on = os.environ.get("FAIL_ON_FAILURE", "false").lower() == "true"
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        out_path = os.environ.get("GITHUB_OUTPUT")
+
+        totals = defaultdict(int)        # global tallies
+        per_suite = defaultdict(lambda: defaultdict(int))
+        failures = []                    # list of (suite, classname, name, kind, message)
+
+        if not log_dir or not os.path.isdir(log_dir):
+            print(f"[summarize-ut] no log dir: {log_dir!r} - nothing to do")
+            xmls = []
+        else:
+            xmls = sorted(glob.glob(os.path.join(log_dir, "**", "*.xml"), recursive=True))
+
+        for path in xmls:
+            suite = os.path.splitext(os.path.basename(path))[0]
+            try:
+                tree = ET.parse(path)
+            except ET.ParseError as e:
+                print(f"::warning::skipping malformed XML {path}: {e}")
+                continue
+            root = tree.getroot()
+            # Handle both <testsuite> and <testsuites> roots.
+            testsuites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+            for ts in testsuites:
+                for tc in ts.iter("testcase"):
+                    totals["total"] += 1
+                    per_suite[suite]["total"] += 1
+                    failed = tc.find("failure")
+                    errored = tc.find("error")
+                    skipped = tc.find("skipped")
+                    if failed is not None:
+                        kind = "failure"
+                    elif errored is not None:
+                        kind = "error"
+                    elif skipped is not None:
+                        kind = "skipped"
+                    else:
+                        kind = "passed"
+                    totals[kind] = totals.get(kind, 0) + 1
+                    per_suite[suite][kind] = per_suite[suite].get(kind, 0) + 1
+                    if kind in ("failure", "error"):
+                        node = failed if kind == "failure" else errored
+                        msg = (node.get("message") or "").splitlines()[0][:200] if node is not None else ""
+                        failures.append((
+                            suite,
+                            tc.get("classname", ""),
+                            tc.get("name", ""),
+                            kind,
+                            msg,
+                        ))
+
+        passed = totals["total"] - sum(totals.get(k, 0) for k in ("failure", "error", "skipped"))
+        totals["passed"] = passed
+
+        # ---- step summary ----
+        lines = ["## Unit Test Summary", ""]
+        if not xmls:
+            lines.append("_No JUnit XML files found in_ `" + log_dir + "`.")
+        else:
+            lines.append(
+                f"**Total:** {totals['total']} &nbsp; "
+                f"**Passed:** {passed} &nbsp; "
+                f"**Failed:** {totals.get('failure', 0)} &nbsp; "
+                f"**Errored:** {totals.get('error', 0)} &nbsp; "
+                f"**Skipped:** {totals.get('skipped', 0)}"
+            )
+            lines.append("")
+            lines.append("| Suite | Total | Passed | Failed | Errored | Skipped |")
+            lines.append("|---|---:|---:|---:|---:|---:|")
+            for suite in sorted(per_suite):
+                c = per_suite[suite]
+                p = c["total"] - c.get("failure", 0) - c.get("error", 0) - c.get("skipped", 0)
+                lines.append(
+                    f"| `{suite}` | {c['total']} | {p} | "
+                    f"{c.get('failure', 0)} | {c.get('error', 0)} | {c.get('skipped', 0)} |"
+                )
+
+            if failures:
+                lines += ["", "<details><summary>Failed tests (first 200)</summary>", ""]
+                lines.append("| Suite | Class | Test | Kind | Message |")
+                lines.append("|---|---|---|---|---|")
+                for suite, cls, name, kind, msg in failures[:200]:
+                    safe_msg = msg.replace("|", "\\|")
+                    lines.append(f"| `{suite}` | `{cls}` | `{name}` | {kind} | {safe_msg} |")
+                if len(failures) > 200:
+                    lines.append("")
+                    lines.append(f"_... and {len(failures) - 200} more_")
+                lines += ["", "</details>"]
+
+        body = "\n".join(lines) + "\n"
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as fh:
+                fh.write(body)
+
+        # ut-summary.md artifact next to the logs
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            with open(os.path.join(log_dir, "ut-summary.md"), "w", encoding="utf-8") as fh:
+                fh.write(body)
+        except OSError as e:
+            print(f"::warning::could not write ut-summary.md: {e}")
+
+        # ---- outputs ----
+        if out_path:
+            with open(out_path, "a", encoding="utf-8") as fh:
+                fh.write(f"total={totals['total']}\n")
+                fh.write(f"passed={passed}\n")
+                fh.write(f"failed={totals.get('failure', 0)}\n")
+                fh.write(f"errored={totals.get('error', 0)}\n")
+                fh.write(f"skipped={totals.get('skipped', 0)}\n")
+
+        if fail_on and (totals.get("failure", 0) + totals.get("error", 0)) > 0:
+            sys.exit(1)
+        PY
