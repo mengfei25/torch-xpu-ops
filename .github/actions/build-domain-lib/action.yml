@@ -1,0 +1,94 @@
+name: build-domain-lib
+description: |
+  Build a PyTorch domain library (TorchVision, TorchAudio, ...) at the commit
+  pinned by `<pytorch>/.github/ci_commit_pins/<pin-file>`, install the
+  resulting wheel, and stage it under `build-dir` for artifact upload.
+
+inputs:
+  name:
+    description: Wheel name prefix (e.g. `torchvision`, `torchaudio`).
+    required: true
+  repo-url:
+    description: Git URL to clone.
+    required: true
+  pin-file:
+    description: |
+      File under `<pytorch-src>/.github/ci_commit_pins/` holding the commit pin.
+      When the file is missing, falls back to `main`.
+    required: true
+  pytorch-src:
+    description: Path to the PyTorch source checkout (used to read the pin).
+    required: true
+  build-dir:
+    description: Destination directory for the produced wheel and build log.
+    required: true
+  gcc-version:
+    description: gcc-toolset version to source on RH-based images.
+    required: false
+    default: '13'
+  os-packages:
+    description: Space-separated list of OS packages to dnf-install before building.
+    required: false
+    default: ''
+  branch:
+    description: Branch to clone before checking out the pinned commit.
+    required: false
+    default: main
+
+runs:
+  using: composite
+  steps:
+    - name: Build ${{ inputs.name }}
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        REPO_URL: ${{ inputs.repo-url }}
+        PIN_FILE: ${{ inputs.pin-file }}
+        PYTORCH_SRC: ${{ inputs.pytorch-src }}
+        BUILD_DIR: ${{ inputs.build-dir }}
+        GCC_VERSION: ${{ inputs.gcc-version }}
+        OS_PACKAGES: ${{ inputs.os-packages }}
+        BRANCH: ${{ inputs.branch }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC1091
+        if [[ -f "/opt/rh/gcc-toolset-${GCC_VERSION}/enable" ]]; then
+          source "/opt/rh/gcc-toolset-${GCC_VERSION}/enable"
+        fi
+
+        if [[ ! -d "${PYTORCH_SRC}" ]]; then
+          echo "::error title=Missing PyTorch source::Expected at ${PYTORCH_SRC}"
+          exit 1
+        fi
+
+        if [[ -n "${OS_PACKAGES}" ]] && command -v dnf &>/dev/null; then
+          # shellcheck disable=SC2086
+          dnf install -y ${OS_PACKAGES}
+        fi
+
+        cd "${PYTORCH_SRC}"
+        commit="$(cat ".github/ci_commit_pins/${PIN_FILE}" 2>/dev/null || echo main)"
+        echo "${NAME} pin: ${commit}"
+
+        src_dir="${NAME}-xpu"
+        rm -rf "${src_dir}"
+        git clone --single-branch -b "${BRANCH}" "${REPO_URL}" "${src_dir}"
+        ( cd "${src_dir}" && git checkout "${commit}" )
+
+        log="${BUILD_DIR}/build_${NAME}_${commit}.log"
+        ( cd "${src_dir}" && python setup.py bdist_wheel ) 2>&1 | tee "${log}"
+
+        wheel=$(find "${src_dir}/dist/" -name "${NAME}-*.whl" -type f | head -1)
+        if [[ -z "${wheel}" ]]; then
+          echo "::error title=${NAME} build failed::No wheel produced"
+          exit 1
+        fi
+        pip install "${wheel}"
+        cp "${wheel}" "${BUILD_DIR}/"
+
+        {
+          echo "## ${NAME} build"
+          echo
+          echo "- commit: \`${commit}\`"
+          echo "- wheel: \`$(basename "${wheel}")\`"
+        } >> "${GITHUB_STEP_SUMMARY:-/dev/null}" || true
