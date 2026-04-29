@@ -1,0 +1,176 @@
+name: Collect and compare results
+description: >-
+  Download per-job test artifacts, fetch the baseline run id from the
+  baseline issue, run check-results.py against current vs baseline, and
+  emit aggregated comparison summary tables to the GitHub step summary.
+  Optionally updates the baseline issue body with this run id.
+
+inputs:
+  baseline-issue:
+    required: true
+    description: GitHub issue number whose body holds baseline run ids.
+  issue-prefix:
+    required: false
+    default: 'PVC -'
+    description: Line prefix in the issue body.
+  artifact-pattern:
+    required: false
+    default: 'Inductor-*'
+    description: Pattern for current-run artifacts (passed to download-artifact).
+  results-dir:
+    required: false
+    default: ${{ github.workspace }}/results
+    description: Directory under which target/ and baseline/ are staged.
+  pytorch-input:
+    required: true
+    description: |
+      Caller's pytorch input (used to derive build_kind: '*_wheel' -> wheel,
+      else build).
+  schedule:
+    required: false
+    default: ${{ github.event.schedule }}
+    description: Cron schedule (used to derive cadence).
+  weekly-cron:
+    required: false
+    default: '00 16 * * 5'
+    description: Cron expression that maps to "weekly".
+  event-name:
+    required: false
+    default: ${{ github.event_name }}
+    description: github.event_name (controls which checks run).
+  update-baseline:
+    required: false
+    default: 'false'
+    description: When 'true', update the baseline issue body with this run id.
+  github-token:
+    required: true
+    description: Token with issues:read+write permission.
+  scripts-dir:
+    required: false
+    default: ${{ github.workspace }}/.ci/scripts/collect
+    description: Directory containing resolve_baseline.sh / update_baseline.sh.
+  fail-on-failure:
+    required: false
+    default: 'true'
+    description: When 'true', forward check-results.py's non-zero exit.
+
+outputs:
+  artifact-type:
+    value: ${{ steps.derive.outputs.artifact_type }}
+  baseline-run-id:
+    value: ${{ steps.baseline.outputs.run_id }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download target logs
+      uses: actions/download-artifact@v8
+      with:
+        pattern: ${{ inputs.artifact-pattern }}
+        path: ${{ inputs.results-dir }}/target
+
+    - name: Derive artifact type
+      id: derive
+      shell: bash
+      env:
+        PYTORCH_INPUT: ${{ inputs.pytorch-input }}
+        SCHEDULE: ${{ inputs.schedule }}
+        WEEKLY_CRON: ${{ inputs.weekly-cron }}
+      run: |
+        set -eo pipefail
+        if [[ "${PYTORCH_INPUT}" == *"_wheel"* ]]; then
+            build_kind=wheel
+        else
+            build_kind=build
+        fi
+        if [[ "${SCHEDULE}" == "${WEEKLY_CRON}" ]]; then
+            cadence=weekly
+        else
+            cadence=nightly
+        fi
+        echo "artifact_type=${build_kind}-${cadence}" >> "$GITHUB_OUTPUT"
+        echo "Derived artifact type: ${build_kind}-${cadence}"
+
+    - name: Resolve baseline run id
+      id: baseline
+      shell: bash
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BASELINE_ISSUE_ID: ${{ inputs.baseline-issue }}
+        ARTIFACT_TYPE: ${{ steps.derive.outputs.artifact_type }}
+        ISSUE_PREFIX: ${{ inputs.issue-prefix }}
+      run: |
+        bash "${{ inputs.scripts-dir }}/resolve_baseline.sh"
+
+    - name: Download baseline logs
+      if: steps.baseline.outputs.run_id != ''
+      uses: actions/download-artifact@v8
+      with:
+        pattern: ${{ inputs.artifact-pattern }}
+        path: ${{ inputs.results-dir }}/baseline
+        run-id: ${{ steps.baseline.outputs.run_id }}
+        github-token: ${{ inputs.github-token }}
+
+    - name: Ensure baseline directory exists
+      shell: bash
+      run: mkdir -p "${{ inputs.results-dir }}/baseline"
+
+    - name: Setup Python environment
+      shell: bash
+      run: |
+        set -eo pipefail
+        if ! command -v uv >/dev/null 2>&1; then
+            curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" sh
+        fi
+        uv venv "${{ github.workspace }}/_collect_venv" --python 3.10 --clear
+        # shellcheck disable=SC1091
+        source "${{ github.workspace }}/_collect_venv/bin/activate"
+        uv pip install pip numpy 'setuptools<81' wheel
+        uv pip install pandas pydantic tqdm psutil openpyxl PyGithub
+
+    - name: Update baseline run id (when requested)
+      if: ${{ inputs.update-baseline == 'true' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BASELINE_ISSUE_ID: ${{ inputs.baseline-issue }}
+        ARTIFACT_TYPE: ${{ steps.derive.outputs.artifact_type }}
+        ISSUE_PREFIX: ${{ inputs.issue-prefix }}
+        NEW_RUN_ID: ${{ github.run_id }}
+      run: |
+        bash "${{ inputs.scripts-dir }}/update_baseline.sh"
+
+    - name: Compare test results
+      shell: bash
+      env:
+        EVENT_NAME: ${{ inputs.event-name }}
+        RESULTS_DIR: ${{ inputs.results-dir }}
+        FAIL_ON: ${{ inputs.fail-on-failure }}
+      run: |
+        set -o pipefail
+        # shellcheck disable=SC1091
+        source "${{ github.workspace }}/_collect_venv/bin/activate"
+        exit_code=0
+        if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            find "${RESULTS_DIR}/baseline" -type f -name '*.xml' -delete 2>/dev/null || true
+            python "${{ github.workspace }}/.github/scripts/check-results.py" \
+                --results-dir "${RESULTS_DIR}" || exit_code=$?
+        else
+            python "${{ github.workspace }}/.github/scripts/check-results.py" \
+                --results-dir "${RESULTS_DIR}" \
+                --check ut_new_fail ut_untracked_fail ut_tracked_pass \
+                        acc_new_fail acc_untracked_fail \
+                        perf_new_fail perf_dropped \
+                || exit_code=$?
+        fi
+
+        for file in e2e_comparison.summary.md ut_comparison.summary.md \
+                    e2e_comparison.details.md  ut_comparison.details.md; do
+            [[ -f "$file" ]] && cat "$file" >> "${GITHUB_STEP_SUMMARY}"
+        done
+
+        if [[ "${FAIL_ON}" == "true" ]]; then
+            exit "${exit_code}"
+        fi
+        exit 0

@@ -276,12 +276,13 @@ jobs:
         run: |
           python torch-xpu-ops/.github/scripts/check-transformers.py transformers/reports/*.xml
 
-      - name: Print environment
+      - name: Collect environment
         if: ${{ ! cancelled() }}
-        uses: ./torch-xpu-ops/.github/actions/print-environment
+        uses: ./torch-xpu-ops/.github/actions/collect-environment
         with:
           pip_packages: 'accelerate datasets transformers'
           to: 'transformers/logs/environment-${{ matrix.test.test_case }}.md'
+          out-json: 'transformers/logs/environment-${{ matrix.test.test_case }}.json'
 
       - name: Clean up
         if: ${{ always() }}

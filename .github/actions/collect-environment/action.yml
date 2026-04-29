@@ -1,0 +1,71 @@
+name: Collect environment
+description: >-
+  Collect runtime environment information into both the GitHub step
+  summary (markdown table) and a structured JSON file. Drop-in
+  replacement for `print-environment` with the same input names plus a
+  new `out-json` for the structured artifact.
+
+inputs:
+  conda:
+    required: false
+    default: ''
+    description: Conda environment to activate before collecting.
+  os_packages:
+    required: false
+    default: ''
+    description: Space-separated extra dpkg packages to query.
+  pip_packages:
+    required: false
+    default: ''
+    description: Space-separated extra pip modules to query.
+  to:
+    required: false
+    default: ''
+    description: When set, write the markdown table to this file instead of $GITHUB_STEP_SUMMARY.
+  out-json:
+    required: false
+    default: ${{ github.workspace }}/environment.json
+    description: Path for the structured JSON output.
+  job-name:
+    required: false
+    default: ${{ github.job }}
+    description: Logical job name used as the row prefix.
+  scripts-dir:
+    required: false
+    default: ''
+    description: |
+      Directory containing environment.sh. Defaults to the script that
+      ships with this action's repository checkout.
+
+outputs:
+  json:
+    value: ${{ inputs.out-json }}
+    description: Path to the JSON file written by this action.
+
+runs:
+  using: composite
+  steps:
+    - name: Collect environment
+      shell: bash
+      env:
+        CONDA: ${{ inputs.conda }}
+        OS_PACKAGES: ${{ inputs.os_packages }}
+        PIP_PACKAGES: ${{ inputs.pip_packages }}
+        OUT_JSON: ${{ inputs.out-json }}
+        JOB_NAME: ${{ inputs.job-name }}
+        TO: ${{ inputs.to }}
+        SCRIPTS_DIR_INPUT: ${{ inputs.scripts-dir }}
+      run: |
+        if [[ -n "${CONDA}" ]]; then
+          # shellcheck disable=SC1091
+          source activate "${CONDA}"
+        fi
+        if [[ -n "${TO}" ]]; then
+          mkdir -p "$(dirname "${TO}")"
+          export OUT_MD="${TO}"
+        fi
+        scripts_dir="${SCRIPTS_DIR_INPUT}"
+        if [[ -z "${scripts_dir}" ]]; then
+          scripts_dir="${{ github.action_path }}/../../../.ci/scripts/collect"
+        fi
+        bash "${scripts_dir}/environment.sh"
