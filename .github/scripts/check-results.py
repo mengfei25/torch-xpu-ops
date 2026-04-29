@@ -272,7 +272,7 @@ def _process_performance_details(reporter: ComparisonReporter, path: Path,
 # Legacy accuracy summary script (restored)
 def _run_accuracy_summary_script(reporter: ComparisonReporter, ctx: ComparisonContext) -> None:
     """Run the legacy e2e_summary.sh script and parse its output."""
-    script = Path(".github/scripts/e2e_summary.sh")
+    script = Path(".ci/scripts/summary/e2e_summary.sh")
     if not script.is_file():
         reporter.add(1, "e2e_summary.sh not found", True, pd.DataFrame(), None)
         return
