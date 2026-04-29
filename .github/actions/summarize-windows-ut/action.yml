@@ -1,0 +1,44 @@
+name: Summarize Windows UT
+description: >-
+  Aggregate per-shard Windows UT artifact directories, fetch the set of
+  known/skipped issues from GitHub, and invoke ut_result_check.sh for
+  each requested suite name. Wraps .ci/scripts/summary/check_windows_ut.sh.
+
+inputs:
+  ut:
+    required: true
+    description: Comma-separated list of UT suite names.
+  artifact-glob:
+    required: true
+    description: Glob matching the per-shard artifact directories under ut-log-dir.
+  ut-log-dir:
+    required: false
+    default: ${{ github.workspace }}/ut_log
+    description: Root directory containing the downloaded artifact shards.
+  github-token:
+    required: true
+    description: Token with issues:read permission for fetching known issues.
+  scripts-dir:
+    required: false
+    default: ''
+    description: |
+      Directory containing check_windows_ut.sh. Defaults to the action's
+      bundled scripts.
+
+runs:
+  using: composite
+  steps:
+    - name: Check Windows UT results
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        UT_NAMES: ${{ inputs.ut }}
+        ARTIFACT_GLOB: ${{ inputs.artifact-glob }}
+        UT_LOG_DIR: ${{ inputs.ut-log-dir }}
+        SCRIPTS_DIR_INPUT: ${{ inputs.scripts-dir }}
+      run: |
+        scripts_dir="${SCRIPTS_DIR_INPUT}"
+        if [[ -z "${scripts_dir}" ]]; then
+          scripts_dir="${{ github.action_path }}/../../../.ci/scripts/summary"
+        fi
+        SCRIPTS_DIR="${scripts_dir}" bash "${scripts_dir}/check_windows_ut.sh"

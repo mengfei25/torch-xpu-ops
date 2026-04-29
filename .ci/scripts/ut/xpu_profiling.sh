@@ -33,8 +33,8 @@ done
 pip install -q transformers || true
 if [[ -f "test/profiling/llama.py" ]]; then
     python test/profiling/llama.py | tee "${LOG_DIR}/llama.log" || true
-    if [[ -f ".github/scripts/llama_summary.py" ]]; then
-        python .github/scripts/llama_summary.py \
+    if [[ -f ".ci/scripts/summary/llama_summary.py" ]]; then
+        python .ci/scripts/summary/llama_summary.py \
             -i "${LOG_DIR}/llama.log" \
             -o "${LOG_DIR}/llama_summary.csv" || true
     fi

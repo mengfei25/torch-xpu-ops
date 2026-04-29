@@ -7,14 +7,14 @@
 #   OUT_DIR         output dir for raw logs and summary CSVs
 #                   (default: $GITHUB_WORKSPACE/op_benchmark)
 #   SUMMARY_SCRIPT  path to microbench_summary.py
-#                   (default: $GITHUB_WORKSPACE/.github/scripts/microbench_summary.py)
+#                   (default: $GITHUB_WORKSPACE/.ci/scripts/summary/microbench_summary.py)
 
 set -euo pipefail
 
 : "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"
 PYTORCH_DIR="${PYTORCH_DIR:-${GITHUB_WORKSPACE}/pytorch}"
 OUT_DIR="${OUT_DIR:-${GITHUB_WORKSPACE}/op_benchmark}"
-SUMMARY_SCRIPT="${SUMMARY_SCRIPT:-${GITHUB_WORKSPACE}/.github/scripts/microbench_summary.py}"
+SUMMARY_SCRIPT="${SUMMARY_SCRIPT:-${GITHUB_WORKSPACE}/.ci/scripts/summary/microbench_summary.py}"
 
 mkdir -p "${OUT_DIR}"
 
