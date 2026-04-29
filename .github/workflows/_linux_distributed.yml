@@ -1,4 +1,4 @@
-name: Linux UT Test
+name: Linux Distributed Test
 
 on:
   workflow_call:
@@ -6,11 +6,7 @@ on:
       runner:
         type: string
         required: true
-        description: Runner label for test execution
-      docker_image_name:
-        type: string
-        default: 'intelgpu/ubuntu-24.04-lts2:2523.40'
-        description: Docker image for test environment (UT job only)
+        description: Runner label for distributed test execution
       pytorch:
         type: string
         default: main
@@ -25,11 +21,8 @@ on:
         description: Python version
       ut:
         type: string
-        required: true
-        description: >-
-          UT scope: op_regression, op_regression_dev1, op_extended,
-          op_ut, skipped_ut, torch_xpu, basic, xpu_profiling, op_p0.
-          Note: xpu_distributed runs in _linux_distributed.yml.
+        default: xpu_distributed
+        description: Distributed UT scope (xpu_distributed)
       category:
         type: string
         default: default
@@ -66,10 +59,6 @@ jobs:
     runs-on: ${{ inputs.runner }}
     outputs:
       runner_id: ${{ steps.runner-info.outputs.runner_id }}
-      user_id: ${{ steps.runner-info.outputs.user_id }}
-      render_id: ${{ steps.runner-info.outputs.render_id }}
-      hostname: ${{ steps.runner-info.outputs.hostname }}
-      pytest_extra_args: ${{ steps.runner-info.outputs.pytest_extra_args }}
       ze_affinity_mask: ${{ steps.runner-info.outputs.ZE_AFFINITY_MASK }}
     steps:
       - name: Clean workspace
@@ -84,38 +73,22 @@ jobs:
         id: runner-info
         uses: ./.github/actions/get-runner
 
-  # ── Unit tests (containerised) ────────────────────────────────────────────
-  UT:
+  # ── Distributed tests (baremetal, no container) ───────────────────────────
+  distributed:
     name: ${{ inputs.ut }}
     needs: runner
     runs-on: ${{ needs.runner.outputs.runner_id }}
-    timeout-minutes: 1440
-    container:
-      image: ${{ inputs.docker_image_name }}
-      volumes:
-        - ${{ github.workspace }}:${{ github.workspace }}
-        - /opt/xpu-test/.cache:/github/home/.cache
-      options: >-
-        --rm
-        --device=/dev/mem
-        --device=/dev/dri
-        --group-add video
-        --security-opt seccomp=unconfined
-        --cap-add=SYS_PTRACE
-        --shm-size=8g
-        -u ${{ needs.runner.outputs.user_id }}:${{ needs.runner.outputs.render_id }}
-      env:
-        AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
-        WORKSPACE: ${{ github.workspace }}
-        ZE_AFFINITY_MASK: ${{ needs.runner.outputs.ze_affinity_mask }}
-        PYTHONPATH: ${{ github.workspace }}/.github
-        PYTEST_ADDOPTS: >-
-          -sq -q --tb=short -p scripts.conftest
-          --timeout 600 --timeout_method=thread
-          --max-worker-restart 1000000
-          --dist worksteal
-          --only-rerun 'crashed while running' --reruns 2
-          ${{ needs.runner.outputs.pytest_extra_args }}
+    timeout-minutes: 600
+    env:
+      AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
+      WORKSPACE: ${{ github.workspace }}
+      ZE_AFFINITY_MASK: ${{ needs.runner.outputs.ze_affinity_mask }}
+      PYTHONPATH: ${{ github.workspace }}/.github
+      PYTEST_ADDOPTS: >-
+        -sq -q --tb=short -p scripts.conftest
+        --timeout 3600 --timeout_method=thread
+        -n 1
+        --max-worker-restart 10000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -128,12 +101,12 @@ jobs:
           pytorch: ${{ inputs.pytorch }}
           torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
           python: ${{ inputs.python }}
-          suite: ${{ contains(inputs.ut, 'transformers') && 'huggingface' || 'None' }}
+          suite: None
           component: ${{ inputs.component }}
           component_version: ${{ inputs.component_version }}
           category: ${{ inputs.category }}
 
-      - name: Run unit tests
+      - name: Run distributed tests
         uses: ./.github/actions/linux-uttest
         with:
           ut_name: ${{ inputs.ut }}
@@ -149,7 +122,7 @@ jobs:
         if: ${{ ! cancelled() }}
         run: |
           if [ ! -d "${WORKSPACE}/ut_log" ]; then
-            echo "::warning::No UT logs found"
+            echo "::warning::No distributed UT logs found"
             exit 0
           fi
           echo "Collected $(find "${WORKSPACE}/ut_log" -type f | wc -l) log files"
@@ -162,4 +135,3 @@ jobs:
           path: ${{ github.workspace }}/ut_log
           retention-days: 7
           if-no-files-found: ignore
-
