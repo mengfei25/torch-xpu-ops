@@ -22,19 +22,25 @@ on:
       suite:
         type: string
         default: huggingface
-        description: 'Suite: huggingface, timm_models, torchbench, pt2e'
+        description: |
+          Comma-separated suite list. Allowed: huggingface, timm_models,
+          torchbench, pt2e. Suites not configured for the current category
+          are skipped.
       dt:
         type: string
         default: float32
-        description: 'Dtypes: float32, bfloat16, float16, amp_bf16, amp_fp16, int8'
+        description: |
+          Comma-separated dtypes (used by `ondemand`/`target`/`baseline`).
+          For other categories the matrix is read from
+          `.ci/config/e2e_matrix.yaml`.
       mode:
         type: string
         default: inference
-        description: 'Modes: inference, training'
+        description: 'Modes (used by ondemand/target/baseline): inference, training'
       scenario:
         type: string
         default: accuracy
-        description: 'Scenarios: accuracy, performance'
+        description: 'Scenarios (used by ondemand/target/baseline): accuracy, performance'
       model:
         type: string
         required: false
@@ -43,7 +49,7 @@ on:
       category:
         type: string
         default: default
-        description: Category for test comparison
+        description: 'Category: pr, nightly, weekly, ondemand, target, baseline'
       component:
         type: string
         default: ''
@@ -118,6 +124,7 @@ jobs:
       CATEGORY: ${{ inputs.category }}
       MODEL_ONLY_NAME: ${{ inputs.model }}
       WORKSPACE: ${{ github.workspace }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -134,190 +141,135 @@ jobs:
           component_version: ${{ inputs.component_version }}
           category: ${{ inputs.category }}
 
-      - name: Parse suite configuration
-        id: parse-suites
+      # ── Suite selection: split inputs.suite into per-suite booleans ───────
+      - name: Detect requested suites
+        id: suites
         run: |
-          IFS=',' read -ra suites <<< "${{ inputs.suite }}"
-          for s in "${suites[@]}"; do
-            s="${s// /}"
-            case "$s" in
-              huggingface)  echo "HAS_HUGGINGFACE=1" >> "$GITHUB_OUTPUT" ;;
-              timm_models)  echo "HAS_TIMM_MODELS=1" >> "$GITHUB_OUTPUT" ;;
-              torchbench)   echo "HAS_TORCHBENCH=1"  >> "$GITHUB_OUTPUT" ;;
-              pt2e)         echo "HAS_PT2E=1"        >> "$GITHUB_OUTPUT" ;;
-            esac
+          IFS=',' read -ra requested <<< "${{ inputs.suite }}"
+          for s in huggingface timm_models torchbench pt2e; do
+            on=false
+            for r in "${requested[@]}"; do
+              [[ "${r// /}" == "${s}" ]] && on=true && break
+            done
+            echo "${s}=${on}" >> "${GITHUB_OUTPUT}"
           done
 
-      # ── CI/CD (pull request) ──────────────────────────────────────────────
-      - name: CI/CD — huggingface
-        if: inputs.category == 'pr' && steps.parse-suites.outputs.HAS_HUGGINGFACE == '1'
-        uses: ./.github/actions/linux-e2etest
+      # ── HuggingFace ───────────────────────────────────────────────────────
+      - name: Resolve matrix — huggingface
+        id: matrix-hf
+        if: steps.suites.outputs.huggingface == 'true'
+        uses: ./.github/actions/resolve-e2e-matrix
+        with:
+          category: ${{ inputs.category }}
+          suite: huggingface
+          override-dt: ${{ inputs.dt }}
+          override-mode: ${{ inputs.mode }}
+          override-scenario: ${{ inputs.scenario }}
+
+      - name: Run E2E — huggingface
+        if: steps.suites.outputs.huggingface == 'true' && steps.matrix-hf.outputs.enabled == 'true'
+        uses: ./.github/actions/run-e2e-suite
         with:
           suite: huggingface
-          dt: bfloat16,float16
-          mode: training
-          scenario: accuracy,performance
+          dt: ${{ steps.matrix-hf.outputs.dt }}
+          mode: ${{ steps.matrix-hf.outputs.mode }}
+          scenario: ${{ steps.matrix-hf.outputs.scenario }}
+          category: ${{ inputs.category }}
+          model: ${{ inputs.model }}
 
-      - name: CI/CD — timm_models
-        if: inputs.category == 'pr' && steps.parse-suites.outputs.HAS_TIMM_MODELS == '1'
-        uses: ./.github/actions/linux-e2etest
+      # ── timm_models ───────────────────────────────────────────────────────
+      - name: Resolve matrix — timm_models
+        id: matrix-timm
+        if: steps.suites.outputs.timm_models == 'true'
+        uses: ./.github/actions/resolve-e2e-matrix
+        with:
+          category: ${{ inputs.category }}
+          suite: timm_models
+          override-dt: ${{ inputs.dt }}
+          override-mode: ${{ inputs.mode }}
+          override-scenario: ${{ inputs.scenario }}
+
+      - name: Run E2E — timm_models
+        if: steps.suites.outputs.timm_models == 'true' && steps.matrix-timm.outputs.enabled == 'true'
+        uses: ./.github/actions/run-e2e-suite
         with:
           suite: timm_models
-          dt: bfloat16
-          mode: training
-          scenario: accuracy,performance
+          dt: ${{ steps.matrix-timm.outputs.dt }}
+          mode: ${{ steps.matrix-timm.outputs.mode }}
+          scenario: ${{ steps.matrix-timm.outputs.scenario }}
+          category: ${{ inputs.category }}
+          model: ${{ inputs.model }}
 
-      - name: CI/CD — torchbench
-        if: inputs.category == 'pr' && steps.parse-suites.outputs.HAS_TORCHBENCH == '1'
-        uses: ./.github/actions/linux-e2etest
+      # ── torchbench ────────────────────────────────────────────────────────
+      - name: Resolve matrix — torchbench
+        id: matrix-tb
+        if: steps.suites.outputs.torchbench == 'true'
+        uses: ./.github/actions/resolve-e2e-matrix
+        with:
+          category: ${{ inputs.category }}
+          suite: torchbench
+          override-dt: ${{ inputs.dt }}
+          override-mode: ${{ inputs.mode }}
+          override-scenario: ${{ inputs.scenario }}
+
+      - name: Run E2E — torchbench
+        if: steps.suites.outputs.torchbench == 'true' && steps.matrix-tb.outputs.enabled == 'true'
+        uses: ./.github/actions/run-e2e-suite
         with:
           suite: torchbench
-          dt: bfloat16
-          mode: training
-          scenario: accuracy,performance
+          dt: ${{ steps.matrix-tb.outputs.dt }}
+          mode: ${{ steps.matrix-tb.outputs.mode }}
+          scenario: ${{ steps.matrix-tb.outputs.scenario }}
+          category: ${{ inputs.category }}
+          model: ${{ inputs.model }}
 
-      # ── Nightly ───────────────────────────────────────────────────────────
-      - name: Nightly — huggingface
-        if: inputs.category == 'nightly' && steps.parse-suites.outputs.HAS_HUGGINGFACE == '1'
-        uses: ./.github/actions/linux-e2etest
+      # ── PT2E (resolves dt/scenario only; no mode) ─────────────────────────
+      - name: Resolve matrix — pt2e
+        id: matrix-pt2e
+        if: steps.suites.outputs.pt2e == 'true'
+        uses: ./.github/actions/resolve-e2e-matrix
         with:
-          suite: huggingface
-          dt: float32,bfloat16,float16,amp_bf16,amp_fp16
-          mode: inference,training
-          scenario: accuracy,performance
+          category: ${{ inputs.category }}
+          suite: pt2e
+          override-dt: ${{ inputs.dt }}
+          override-scenario: ${{ inputs.scenario }}
 
-      - name: Nightly — timm_models
-        if: inputs.category == 'nightly' && steps.parse-suites.outputs.HAS_TIMM_MODELS == '1'
-        uses: ./.github/actions/linux-e2etest
-        with:
-          suite: timm_models
-          dt: float16,bfloat16
-          mode: training
-          scenario: accuracy,performance
-
-      - name: Nightly — torchbench
-        if: inputs.category == 'nightly' && steps.parse-suites.outputs.HAS_TORCHBENCH == '1'
-        uses: ./.github/actions/linux-e2etest
-        with:
-          suite: torchbench
-          dt: float16,bfloat16
-          mode: training
-          scenario: accuracy,performance
-
-      - name: Nightly — pt2e
-        if: inputs.category == 'nightly' && steps.parse-suites.outputs.HAS_PT2E == '1'
+      - name: Run PT2E
+        if: steps.suites.outputs.pt2e == 'true' && steps.matrix-pt2e.outputs.enabled == 'true'
         uses: ./.github/actions/pt2e
         with:
-          dt: float32,int8
-          scenario: accuracy,performance
+          dt: ${{ steps.matrix-pt2e.outputs.dt }}
+          scenario: ${{ steps.matrix-pt2e.outputs.scenario }}
 
-      # ── Weekly ────────────────────────────────────────────────────────────
-      - name: Weekly — huggingface
-        if: inputs.category == 'weekly' && steps.parse-suites.outputs.HAS_HUGGINGFACE == '1'
-        uses: ./.github/actions/linux-e2etest
-        with:
-          suite: huggingface
-          dt: float32,bfloat16,float16,amp_bf16,amp_fp16
-          mode: inference,training
-          scenario: accuracy,performance
-
-      - name: Weekly — timm_models
-        if: inputs.category == 'weekly' && steps.parse-suites.outputs.HAS_TIMM_MODELS == '1'
-        uses: ./.github/actions/linux-e2etest
-        with:
-          suite: timm_models
-          dt: float32,bfloat16,float16,amp_bf16,amp_fp16
-          mode: inference,training
-          scenario: accuracy,performance
-
-      - name: Weekly — torchbench
-        if: inputs.category == 'weekly' && steps.parse-suites.outputs.HAS_TORCHBENCH == '1'
-        uses: ./.github/actions/linux-e2etest
-        with:
-          suite: torchbench
-          dt: float32,bfloat16,float16,amp_bf16,amp_fp16
-          mode: inference,training
-          scenario: accuracy,performance
-
-      - name: Weekly — pt2e
-        if: inputs.category == 'weekly' && steps.parse-suites.outputs.HAS_PT2E == '1'
-        uses: ./.github/actions/pt2e
-        with:
-          dt: float32,int8
-          scenario: accuracy,performance
-
-      # ── On-demand ─────────────────────────────────────────────────────────
-      - name: Parse dtypes for on-demand tests
-        id: parse-dtypes
-        if: inputs.category == 'ondemand'
-        run: |
-          # Split dtypes into E2E-valid and PT2E-valid buckets
-          E2E="" ; PT2E=""
-          IFS=',' read -ra dts <<< "${{ inputs.dt }}"
-          for d in "${dts[@]}"; do
-            d="${d// /}"
-            case "$d" in
-              float32|bfloat16|float16|amp_bf16|amp_fp16) E2E="${E2E:+$E2E,}$d" ;;
-            esac
-            case "$d" in
-              float32|int8) PT2E="${PT2E:+$PT2E,}$d" ;;
-            esac
-          done
-          echo "E2E_DTYPES=${E2E:-float32}"   >> "$GITHUB_OUTPUT"
-          echo "PT2E_DTYPES=${PT2E:-float32}" >> "$GITHUB_OUTPUT"
-
-      - name: On-demand — huggingface
-        if: inputs.category == 'ondemand' && steps.parse-suites.outputs.HAS_HUGGINGFACE == '1'
-        uses: ./.github/actions/linux-e2etest
-        with:
-          suite: huggingface
-          dt: ${{ steps.parse-dtypes.outputs.E2E_DTYPES }}
-          mode: ${{ inputs.mode }}
-          scenario: ${{ inputs.scenario }}
-
-      - name: On-demand — timm_models
-        if: inputs.category == 'ondemand' && steps.parse-suites.outputs.HAS_TIMM_MODELS == '1'
-        uses: ./.github/actions/linux-e2etest
-        with:
-          suite: timm_models
-          dt: ${{ steps.parse-dtypes.outputs.E2E_DTYPES }}
-          mode: ${{ inputs.mode }}
-          scenario: ${{ inputs.scenario }}
-
-      - name: On-demand — torchbench
-        if: inputs.category == 'ondemand' && steps.parse-suites.outputs.HAS_TORCHBENCH == '1'
-        uses: ./.github/actions/linux-e2etest
-        with:
-          suite: torchbench
-          dt: ${{ steps.parse-dtypes.outputs.E2E_DTYPES }}
-          mode: ${{ inputs.mode }}
-          scenario: ${{ inputs.scenario }}
-
-      - name: On-demand — pt2e
-        if: inputs.category == 'ondemand' && steps.parse-suites.outputs.HAS_PT2E == '1'
-        uses: ./.github/actions/pt2e
-        with:
-          dt: ${{ steps.parse-dtypes.outputs.PT2E_DTYPES }}
-          scenario: ${{ inputs.scenario }}
-
-      # ── Comparison (target / baseline) ────────────────────────────────────
-      - name: Comparison — training
+      # ── Comparison categories use a fixed two-pass matrix ────────────────
+      - name: Comparison — training (amp_fp16)
         if: inputs.category == 'target' || inputs.category == 'baseline'
-        uses: ./.github/actions/linux-e2etest
+        uses: ./.github/actions/run-e2e-suite
         with:
           suite: ${{ inputs.suite }}
           dt: amp_fp16
           mode: training
           scenario: accuracy,performance
+          category: ${{ inputs.category }}
+          model: ${{ inputs.model }}
 
-      - name: Comparison — inference
+      - name: Comparison — inference (bfloat16)
         if: inputs.category == 'target' || inputs.category == 'baseline'
-        uses: ./.github/actions/linux-e2etest
+        uses: ./.github/actions/run-e2e-suite
         with:
           suite: ${{ inputs.suite }}
           dt: bfloat16
           mode: inference
           scenario: accuracy,performance
+          category: ${{ inputs.category }}
+          model: ${{ inputs.model }}
+
+      # ── Summary ───────────────────────────────────────────────────────────
+      - name: Summarize results
+        if: ${{ ! cancelled() }}
+        uses: ./.github/actions/summarize-e2e
+        with:
+          log-dir: ${{ env.WORKSPACE }}/pytorch/inductor_log
 
       # ── Collect & upload artifacts ────────────────────────────────────────
       - name: Collect test artifacts

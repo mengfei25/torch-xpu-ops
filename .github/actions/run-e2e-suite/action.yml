@@ -1,0 +1,132 @@
+name: run-e2e-suite
+description: |
+  Run an Inductor E2E (dynamo benchmark) suite for one (suite, dt, mode,
+  scenario) combination. Wraps `.github/scripts/run_benchmark.py` with:
+    - oneAPI sourcing (when `XPU_ONEAPI_PATH` is set),
+    - model-list resolution from `.ci/benchmarks/models_list.txt`
+      (skipped for `pr`, `target`, `baseline`),
+    - `--model-only` override,
+    - `NUM_GPUS` derivation from `ZE_AFFINITY_MASK`,
+    - structured failure annotations on non-zero exit.
+
+inputs:
+  suite:
+    description: 'huggingface | timm_models | torchbench'
+    required: true
+  dt:
+    description: Comma-separated dtypes.
+    required: true
+  mode:
+    description: Comma-separated modes.
+    required: true
+  scenario:
+    description: Comma-separated scenarios.
+    required: true
+  category:
+    description: Category (controls model-list resolution).
+    required: false
+    default: ondemand
+  model:
+    description: Optional `--model-only` override (single model name).
+    required: false
+    default: ''
+  pytorch-src:
+    description: PyTorch source directory (where `run_benchmark.py` is staged).
+    required: false
+    default: ${{ github.workspace }}/pytorch
+  benchmarks-config-dir:
+    description: Path to `.ci/benchmarks/` (model lists, suite YAMLs).
+    required: false
+    default: ${{ github.workspace }}/.ci/benchmarks
+  scripts-dir:
+    description: Path to `.github/scripts/` (where `run_benchmark.py` lives).
+    required: false
+    default: ${{ github.workspace }}/.github/scripts
+  xpu-ops-dir:
+    description: Path to torch-xpu-ops checkout (for `env.sh`).
+    required: false
+    default: ${{ github.workspace }}/torch-xpu-ops
+
+runs:
+  using: composite
+  steps:
+    - name: Run E2E (${{ inputs.suite }} / ${{ inputs.dt }} / ${{ inputs.mode }} / ${{ inputs.scenario }})
+      shell: bash
+      env:
+        E2E_SUITE: ${{ inputs.suite }}
+        E2E_DT: ${{ inputs.dt }}
+        E2E_MODE: ${{ inputs.mode }}
+        E2E_SCENARIO: ${{ inputs.scenario }}
+        E2E_CATEGORY: ${{ inputs.category }}
+        E2E_MODEL: ${{ inputs.model }}
+        PYTORCH_SRC: ${{ inputs.pytorch-src }}
+        BENCH_CFG_DIR: ${{ inputs.benchmarks-config-dir }}
+        SCRIPTS_DIR: ${{ inputs.scripts-dir }}
+        XPU_OPS_DIR: ${{ inputs.xpu-ops-dir }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${E2E_DT}" ]]; then
+          echo "::warning title=Skipping E2E::Empty dt for suite=${E2E_SUITE}"
+          exit 0
+        fi
+
+        # Source oneAPI when present (best-effort).
+        if [[ -n "${XPU_ONEAPI_PATH:-}" && -f "${XPU_OPS_DIR}/.github/scripts/env.sh" ]]; then
+          # shellcheck disable=SC1091
+          source "${XPU_OPS_DIR}/.github/scripts/env.sh" || true
+        fi
+
+        # Locate run_benchmark.py.
+        driver="${SCRIPTS_DIR}/run_benchmark.py"
+        if [[ ! -f "${driver}" ]]; then
+          echo "::error title=run_benchmark.py missing::Expected at ${driver}"
+          exit 1
+        fi
+        cp "${driver}" "${PYTORCH_SRC}/"
+
+        cd "${PYTORCH_SRC}"
+        rm -rf torch inductor_log ~/.triton /tmp/torchinductor_*
+
+        # Build --model-only argument.
+        model_args=()
+        if [[ -n "${E2E_MODEL}" ]]; then
+          model_args+=(--model-only "${E2E_MODEL}")
+        elif [[ "${E2E_CATEGORY}" != "pr" && "${E2E_CATEGORY}" != "target" && "${E2E_CATEGORY}" != "baseline" ]]; then
+          if [[ -d "${BENCH_CFG_DIR}" ]]; then
+            rsync -a "${BENCH_CFG_DIR}/" ./benchmarks/dynamo/
+            list="${BENCH_CFG_DIR}/models_list.txt"
+            if [[ -f "${list}" ]]; then
+              model_args+=(--model-only "${list}")
+            fi
+          fi
+        fi
+
+        # Derive NUM_GPUS from ZE_AFFINITY_MASK if not set.
+        if [[ -z "${NUM_GPUS:-}" && -n "${ZE_AFFINITY_MASK:-}" ]]; then
+          export NUM_GPUS
+          NUM_GPUS=$(awk -F, '{print NF}' <<<"${ZE_AFFINITY_MASK}")
+        fi
+        echo "NUM_GPUS=${NUM_GPUS:-unset}  ZE_AFFINITY_MASK=${ZE_AFFINITY_MASK:-unset}"
+
+        rc=0
+        python ./run_benchmark.py \
+          --suite "${E2E_SUITE}" \
+          --dt "${E2E_DT}" \
+          --mode "${E2E_MODE}" \
+          --scenario "${E2E_SCENARIO}" \
+          "${model_args[@]}" || rc=$?
+
+        if [[ "${rc}" -ne 0 ]]; then
+          echo "::error title=E2E failed::suite=${E2E_SUITE} dt=${E2E_DT} mode=${E2E_MODE} scenario=${E2E_SCENARIO} (exit ${rc})"
+        fi
+
+        {
+          echo "## E2E run: \`${E2E_SUITE}\`"
+          echo
+          echo "| dt | mode | scenario | category | exit |"
+          echo "|----|------|----------|----------|------|"
+          echo "| \`${E2E_DT}\` | \`${E2E_MODE}\` | \`${E2E_SCENARIO}\` | \`${E2E_CATEGORY}\` | ${rc} |"
+        } >> "${GITHUB_STEP_SUMMARY:-/dev/null}" || true
+
+        exit "${rc}"
