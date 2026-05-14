@@ -213,3 +213,4 @@ runs:
           echo "Torch is re-installed when installing deps, please check"
           exit 1
         fi
+        ONEDNN_VERBOSE=1 python -c 'import torch; torch.nn.Conv2d(1,1,1,stride=1,device="xpu")(torch.randn(1,1,1,1,device="xpu"))'

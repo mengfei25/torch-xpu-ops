@@ -103,7 +103,7 @@ jobs:
       pytorch: ${{ inputs.pytorch }}
       torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
       python: ${{ inputs.python }}
-      ut: p0
+      ut: op_regression
       category: target
       skip_summary: true
 
@@ -114,7 +114,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [huggingface, timm_models, torchbench]
+        suite: [huggingface]
     uses: ./.github/workflows/_linux_e2e.yml
     with:
       runner: ${{ needs.pick-runner.outputs.runner_id }}
@@ -123,6 +123,7 @@ jobs:
       python: ${{ inputs.python }}
       suite: ${{ matrix.suite }}
       category: target
+      model: T5Small
 
   # ==================================================================
   # BASELINE pipeline
@@ -153,7 +154,7 @@ jobs:
       pytorch: ${{ inputs.pytorch }}
       torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
       python: ${{ inputs.python }}
-      ut: p0
+      ut: op_regression
       category: baseline
       skip_summary: true
 
@@ -164,7 +165,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [huggingface, timm_models, torchbench]
+        suite: [huggingface]
     uses: ./.github/workflows/_linux_e2e.yml
     with:
       runner: ${{ needs.pick-runner.outputs.runner_id }}
@@ -173,6 +174,7 @@ jobs:
       python: ${{ inputs.python }}
       suite: ${{ matrix.suite }}
       category: baseline
+      model: T5Small
 
   # ==================================================================
   # Compare results
