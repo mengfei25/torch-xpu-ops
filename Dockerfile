@@ -15,7 +15,7 @@ RUN dnf install -y 'dnf-command(config-manager)' && \
     rm -rf /var/cache/dnf
 
 # Reinstall oneAPI DLE
-COPY intel-deep-learning-essentials-2026.1.1.11_offline.sh ./oneapi-dle.sh
+RUN wget -q --no-proxy --no-check-certificate -O oneapi-dle.sh http://10.239.157.137/pytorch/xpu/intel-deep-learning-essentials-2026.1.1.11_offline.sh
 RUN rm -rf /opt/intel/oneapi
 RUN bash ./oneapi-dle.sh -a -s --action remove --eula accept || true
 RUN bash ./oneapi-dle.sh -a -s --action install --eula accept && \
