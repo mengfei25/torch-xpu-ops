@@ -14,6 +14,15 @@ RUN dnf install -y 'dnf-command(config-manager)' && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
+# Reinstall oneAPI DLE
+COPY /home/gta/mengfeil/intel-deep-learning-essentials-2026.1.1.11_offline.sh ./oneapi-dle.sh
+RUN rm -rf /opt/intel/oneapi
+RUN bash ./oneapi-dle.sh -a -s --action remove --eula accept || true
+RUN bash ./oneapi-dle.sh -a -s --action install --eula accept && \
+    bash ./oneapi-dle.sh -a -s --action repair --eula accept && \
+    rm -rf ./oneapi-dle.sh && ls /opt/intel/oneapi
+RUN source /opt/intel/oneapi/setvars.sh && icpx --version && sycl-ls
+
 # Option 2: Download first and copy it and install intel-omix-devel
 # COPY intel-gpu-8.10.repo /etc/yum.repos.d/intel-gpu-8.10.repo
 # RUN dnf install -y intel-omix-devel && \
