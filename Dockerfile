@@ -15,7 +15,7 @@ RUN dnf install -y 'dnf-command(config-manager)' && \
     rm -rf /var/cache/dnf
 
 # Reinstall oneAPI DLE
-COPY /home/gta/mengfeil/intel-deep-learning-essentials-2026.1.1.11_offline.sh ./oneapi-dle.sh
+COPY intel-deep-learning-essentials-2026.1.1.11_offline.sh ./oneapi-dle.sh
 RUN rm -rf /opt/intel/oneapi
 RUN bash ./oneapi-dle.sh -a -s --action remove --eula accept || true
 RUN bash ./oneapi-dle.sh -a -s --action install --eula accept && \

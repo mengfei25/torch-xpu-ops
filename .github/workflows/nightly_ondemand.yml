@@ -144,7 +144,7 @@ jobs:
               -v /home/gta/:/home/gta/ intel-omix-0.3.0:rhel bash
 
   Linux-Nightly-Ondemand-Build:
-    needs: [Conditions-Filter]
+    needs: [Conditions-Filter, build-image]
     name: linux-build
     secrets: inherit
     strategy:
