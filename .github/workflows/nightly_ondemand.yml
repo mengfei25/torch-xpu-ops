@@ -131,6 +131,18 @@ jobs:
           echo "triton=${triton}" >> ${GITHUB_OUTPUT}
           echo "python=${python}" >> ${GITHUB_OUTPUT}
 
+  build-image:
+    runs-on: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: |
+          docker build -t omix-0.3.0:rhel .
+          docker rm -f build || true
+          docker run -id -e TZ=Aisa/Shanghai --device=/dev/mem --device=/dev/dri --group-add video \
+              --privileged --shm-size=8g --name build \
+              -v /home/gta/:/home/gta/ intel-omix-dev:0.3.0 bash
+
   Linux-Nightly-Ondemand-Build:
     needs: [Conditions-Filter]
     name: linux-build

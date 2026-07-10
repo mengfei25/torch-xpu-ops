@@ -47,16 +47,9 @@ jobs:
     name: ${{ inputs.pytorch }}
     if: ${{ ! endsWith(inputs.pytorch, '_wheel') }}
     runs-on: ${{ inputs.runner }}
-    container:
-      image: /home/gta/mengfeil/Dockerfile
-      volumes:
-        - ${{ github.workspace }}:${{ github.workspace }}
-      env:
-        PATH: /tmp/xpu-tool/myvenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-        AGENT_TOOLSDIRECTORY: /tmp/xpu-tool
-        PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
-    env:
-      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: 'bash -c "cat {0} | docker exec -i -e PIP_CACHE_DIR=/tmp/xpu-tool/.pipcache -e VIRTUAL_ENV=/opt/uv-python -e PATH=/tmp/xpu-tool/myvenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin -e GH_TOKEN=${{ github.token }} -w ${{ github.workspace }} build bash -xe"'
     timeout-minutes: 300
     steps:
       - name: Install gh-cli
@@ -239,24 +232,3 @@ jobs:
         if: ${{ always() }}
         run: |
           chmod 777 /__w /github ./ -R
-
-  build-status-check:
-    needs: [build]
-    if: ${{ always() }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Check build result
-        run: |
-          result="${{ needs.build.result }}"
-          echo "build result: $result"
-          if [ "$result" = "skipped" ]; then
-            echo "build was skipped, marking as pass"
-            exit 0
-          elif [ "$result" = "success" ]; then
-            echo "build passed"
-            exit 0
-          else
-            echo "build failed with result: $result"
-            exit 1
-          fi
