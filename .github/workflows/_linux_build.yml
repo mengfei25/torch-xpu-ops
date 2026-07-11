@@ -93,7 +93,7 @@ jobs:
           echo "USE_DPCLANG=yes" >> $GITHUB_ENV
       - name: Build Pytorch
         run: |
-          export USE_XCCL=1
+          export USE_XCCL=0
           export IS_XPU_CI=1
           # only build pvc for CI
           if [ "${{ github.event_name }}" == "pull_request" ];then
@@ -134,7 +134,6 @@ jobs:
         run: |
           # gcc 13
           source /opt/rh/gcc-toolset-13/enable
-          source /opt/intel/oneapi/ccl/latest/env/vars.sh
           cd ./pytorch
           TORCHVISION_COMMIT_ID="$(cat .github/ci_commit_pins/vision.txt)"
           TORCHAUDIO_COMMIT_ID="$(cat .github/ci_commit_pins/audio.txt)"
@@ -159,7 +158,6 @@ jobs:
       - name: Build Triton
         run: |
           cd ./pytorch
-          source /opt/intel/oneapi/ccl/latest/env/vars.sh
           rm -rf triton_xpu-*.whl
           if [ -z ${{ inputs.triton }} ] || [ "${{ inputs.triton }}" == "pinned" ];then
             TRITON_COMMIT_ID="$(cat .ci/docker/ci_commit_pins/triton-xpu.txt)"
@@ -198,7 +196,6 @@ jobs:
       - name: Torch Config
         run: |
           printenv
-          source /opt/intel/oneapi/ccl/latest/env/vars.sh
           python -c "import torch; print(torch.__config__.show())"
           python -c "import torch; print(torch.__config__.parallel_info())"
           python -c "import torch; print(torch.__config__.torch.xpu.device_count())"

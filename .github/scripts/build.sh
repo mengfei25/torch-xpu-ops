@@ -117,7 +117,6 @@ python -m pip install --force-reinstall tmp/torch*.whl
 
 # Verify
 cd ${WORKSPACE}
-source /opt/intel/oneapi/ccl/latest/env/vars.sh
 python ${WORKSPACE}/pytorch/torch/utils/collect_env.py
 python -c "import torch; print(torch.__config__.show())"
 python -c "import torch; print(torch.__config__.parallel_info())"
