@@ -1,0 +1,26 @@
+name: ARC Runner Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: arc smoke ${{ matrix.executor }}
+    runs-on: xpu-ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        executor: [1, 2, 3, 4]
+    steps:
+      - name: Show ARC runner environment
+        run: |
+          set -euxo pipefail
+          cat /etc/os-release
+          uname -a
+          id
+          nproc
+          df -h .
+          echo "executor=${{ matrix.executor }}"
