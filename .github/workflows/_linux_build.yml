@@ -85,6 +85,11 @@ jobs:
           rm -rf /opt/intel/oneapi/compiler/*
           ln -sf /opt/intel/oneapi/compiler/20260903_160000 /opt/intel/oneapi/compiler/latest
           ln -sf /opt/intel/oneapi/compiler/20260903_160000 /opt/intel/oneapi/compiler/2026.2
+          echo "XPU_ONEAPI_PATH=/opt/intel/oneapi" >> ${GITHUB_ENV}
+          set +x
+          source /opt/intel/oneapi/setvars.sh
+          which icpx
+          icpx --version
       - name: Setup python-${{ inputs.python }}
         run: |
           rm -rf /tmp/xpu-tool/myvenv
@@ -178,6 +183,7 @@ jobs:
       - name: Torch Config
         run: |
           printenv
+          source /opt/intel/oneapi/setvars.sh
           python -c "import torch; print(torch.__config__.show())"
           python -c "import torch; print(torch.__config__.parallel_info())"
           python -c "import torch; print(torch.__config__.torch.xpu.device_count())"
