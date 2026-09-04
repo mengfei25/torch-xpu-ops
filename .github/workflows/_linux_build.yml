@@ -74,17 +74,11 @@ jobs:
           chmod 600 ~/.netrc
       - name: Install DLE
         run: |
-          rm -rf /opt/intel/oneapi intel-deep-learning-essentials-2026.2.0.466_offline.sh linux_qa_release.tgz
-          wget --no-proxy --no-check-certificate -q http://10.239.177.6/pytorch/xpu/bundle/intel-deep-learning-essentials-2026.2.0.466_offline.sh
-          bash intel-deep-learning-essentials-2026.2.0.466_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action remove || true
-          bash intel-deep-learning-essentials-2026.2.0.466_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action install
-          bash intel-deep-learning-essentials-2026.2.0.466_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action repair
-          wget --no-proxy --no-check-certificate -q -O linux_qa_release.tgz http://10.239.177.6/pytorch/xpu/bundle/compiler_20260903_160000/linux_qa_release.tgz
-          rm -rf /opt/intel/oneapi/compiler/20260903_160000 && mkdir -p /opt/intel/oneapi/compiler/20260903_160000
-          tar -xzf linux_qa_release.tgz -C /opt/intel/oneapi/compiler/20260903_160000
-          rm -rf /opt/intel/oneapi/compiler/latest && rm -rf /opt/intel/oneapi/compiler/2026.2
-          ln -sf /opt/intel/oneapi/compiler/20260903_160000 /opt/intel/oneapi/compiler/latest
-          ln -sf /opt/intel/oneapi/compiler/20260903_160000 /opt/intel/oneapi/compiler/2026.2
+          rm -rf /opt/intel/oneapi intel-deep-learning-essentials-2026.1.3.17_offline.sh linux_qa_release.tgz
+          wget -q https://registrationcenter-download.intel.com/akdlm/IRC_NAS/bedab612-cf6b-4ece-872e-e72e9534ccab/intel-deep-learning-essentials-2026.1.3.17_offline.sh
+          bash intel-deep-learning-essentials-2026.1.3.17_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action remove || true
+          bash intel-deep-learning-essentials-2026.1.3.17_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action install
+          bash intel-deep-learning-essentials-2026.1.3.17_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action repair
           echo "XPU_ONEAPI_PATH=/opt/intel/oneapi" >> ${GITHUB_ENV}
           set +x
           source /opt/intel/oneapi/setvars.sh
