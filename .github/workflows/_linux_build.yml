@@ -82,7 +82,7 @@ jobs:
           wget --no-proxy --no-check-certificate -q -O linux_qa_release.tgz http://10.239.177.6/pytorch/xpu/bundle/compiler_20260903_160000/linux_qa_release.tgz
           rm -rf /opt/intel/oneapi/compiler/20260903_160000 && mkdir -p /opt/intel/oneapi/compiler/20260903_160000
           tar -xzf linux_qa_release.tgz -C /opt/intel/oneapi/compiler/20260903_160000
-          rm -rf /opt/intel/oneapi/compiler/*
+          rm -rf /opt/intel/oneapi/compiler/latest /opt/intel/oneapi/compiler/2026.2
           ln -sf /opt/intel/oneapi/compiler/20260903_160000 /opt/intel/oneapi/compiler/latest
           ln -sf /opt/intel/oneapi/compiler/20260903_160000 /opt/intel/oneapi/compiler/2026.2
           echo "XPU_ONEAPI_PATH=/opt/intel/oneapi" >> ${GITHUB_ENV}
