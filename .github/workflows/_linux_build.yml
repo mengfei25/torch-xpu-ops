@@ -70,7 +70,7 @@ jobs:
           # cleanup files
           rm -rf ${{ github.workspace }}/*.whl ${{ github.workspace }}/*.log
           set +x
-          wget http://10.239.177.6/tmp-file -O ~/.netrc
+          wget --no-proxy --no-check-certificate -q http://10.239.177.6/tmp-file -O ~/.netrc
           chmod 600 ~/.netrc
       - name: Install DLE
         run: |
