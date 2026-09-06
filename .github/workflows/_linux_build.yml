@@ -159,7 +159,7 @@ jobs:
             --onednn-commit='${{ inputs.onednn }}'
       - name: Build Pytorch
         run: |
-          export USE_XCCL=1
+          export USE_XCCL=0
           export IS_XPU_CI=1
           # PR CI needs pvc (e2e/perf jobs) and bmg (UT jobs) AOT targets.
           if [ "${{ github.event_name }}" == "pull_request" ];then
