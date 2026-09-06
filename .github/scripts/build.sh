@@ -65,6 +65,8 @@ fi
 # Post Build: Install and verify
 python -m pip install --force-reinstall dist/torch*.whl
 
+source /opt/intel/oneapi/setvars.sh --force
+
 cd "${WORKSPACE}"
 python "${WORKSPACE}/pytorch/torch/utils/collect_env.py"
 python -c "import torch; print(torch.__config__.show())"
