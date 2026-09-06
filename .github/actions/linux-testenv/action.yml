@@ -35,6 +35,22 @@ runs:
         dpkg -l |grep -E 'libigc-dev|libze-dev|level-zero-dev|intel-opencl-icd'
         rm -rf ~/.triton /tmp/*inductor* /tmp/tmp*
         rm -rf Torch-XPU-Wheel-*
+    - name: Install DLE
+      run: |
+        rm -rf /opt/intel/oneapi intel-deep-learning-essentials-2026.2.0.466_offline.sh linux_qa_release.tgz
+        cp /home/jenkins/mengfeil/intel-deep-learning-essentials-2026.2.0.466_offline.sh .
+        bash intel-deep-learning-essentials-2026.2.0.466_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action remove || true
+        bash intel-deep-learning-essentials-2026.2.0.466_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action install
+        bash intel-deep-learning-essentials-2026.2.0.466_offline.sh -a -s --eula accept --install-dir /opt/intel/oneapi --action repair
+        cp /home/jenkins/mengfeil/linux_qa_release.tgz .
+        rm -rf /opt/intel/oneapi/compiler/20260903_160000 && mkdir -p /opt/intel/oneapi/compiler/20260903_160000
+        tar -xzf linux_qa_release.tgz -C /opt/intel/oneapi/compiler/20260903_160000
+        rm -rf /opt/intel/oneapi/compiler/latest /opt/intel/oneapi/compiler/2026.2
+        ln -sf /opt/intel/oneapi/compiler/20260903_160000 /opt/intel/oneapi/compiler/latest
+        ln -sf /opt/intel/oneapi/compiler/20260903_160000 /opt/intel/oneapi/compiler/2026.2
+        echo "XPU_ONEAPI_PATH=/opt/intel/oneapi" >> ${GITHUB_ENV}
+        echo "source /opt/intel/oneapi/setvars.sh" > ${RUNNER_TEMP}/oneapi_env.sh
+        echo "BASH_ENV=${RUNNER_TEMP}/oneapi_env.sh" >> ${GITHUB_ENV}
     - name: Setup python-${{ inputs.python }}
       uses: ./.github/actions/setup-python
       with:
@@ -70,6 +86,7 @@ runs:
     - name: Prepare Stock Pytorch
       shell: bash -xe {0}
       run: |
+        which icpx && icpx --version
         # install pytorch
         if [ $(echo "${{ inputs.pytorch }}" |grep -w "release_wheel" -c) -ne 0 ];then
           uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu
@@ -240,3 +257,17 @@ runs:
           echo "Torch is re-installed when installing deps, please check"
           exit 1
         fi
+    - name: Download Pytorch wheel
+      uses: actions/download-artifact@v4
+      with:
+        name: manywheel-py3_10-xpu
+        github-token: ${{ github.token }}
+        repository: mengfei25/torch-xpu-ops
+        run-id: 34013634626
+        path: ${{ github.workspace }}/wheels
+    - name: Install test target
+      shell: bash -xe {0}
+      run: |
+        pip uninstall -y torch && pip uninstall -y torch
+        pip install ${{ github.workspace }}/wheels/torch-*.whl --no-deps
+        pip list |grep -E 'intel|torch|triton'
