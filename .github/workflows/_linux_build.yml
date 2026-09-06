@@ -190,7 +190,7 @@ jobs:
           pip list |grep -E 'torch|intel'
           rm -rf ~/.netrc
       - name: Upload Torch XPU Wheel
-        if: ${{ success() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
           name: Torch-XPU-Wheel-${{ github.event.pull_request.number || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}${{ inputs.category != '' && format('-{0}', inputs.category) || '' }}
