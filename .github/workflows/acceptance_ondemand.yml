@@ -54,16 +54,7 @@ on:
         required: true
         description: 'Baseline ref for the selected test_component.'
 
-      caller:
-        type: string
-        default: ''
-        description: 'Caller id (e.g. onednn-pr-2) for concurrency grouping; a new run cancels the previous one with the same caller.'
-
 permissions: read-all
-
-concurrency:
-  group: acceptance-${{ github.event.inputs.caller || format('{0}-{1}-{2}-{3}-{4}', github.event.inputs.test_component, github.event.inputs.test_pattern, github.event.inputs.python, github.event.inputs.target_version, github.event.inputs.baseline_version) }}
-  cancel-in-progress: true
 
 run-name: >-
   Acceptance / ${{ inputs.test_component }} [${{ inputs.test_pattern }}] ${{ inputs.target_version }} vs ${{ inputs.baseline_version }}
@@ -257,71 +248,48 @@ jobs:
           mkdir -p "${{ github.workspace }}/results/baseline/e2e"
           mkdir -p "${{ github.workspace }}/results/baseline/ut"
 
-      - name: Install comparison dependencies
+      - name: Build report inputs
         run: |
-          uv pip install --quiet pandas numpy openpyxl PyGithub
-
-      - name: E2E comparison (compare-e2e.py)
-        id: e2e-cmp
-        continue-on-error: true
-        run: |
-          # Flatten per-suite artifact directories so compare-e2e.py finds csvs
+          # E2E artifacts nest per-suite folders; flatten then reshape to the
+          # gen_report.py schema. UT JUnit xml is used as-is.
+          work="${{ github.workspace }}/report"
           for side in target baseline; do
-            base="${{ github.workspace }}/results/${side}/e2e"
-            if compgen -G "${base}/Inductor-*-LTS2-XPU-E2E-Data-*" > /dev/null; then
-              for d in "${base}"/Inductor-*-LTS2-XPU-E2E-Data-*; do
-                cp -r "${d}/." "${base}/"
+            e2e="${{ github.workspace }}/results/${side}/e2e"
+            if compgen -G "${e2e}/Inductor-*-LTS2-XPU-E2E-Data-*" > /dev/null; then
+              for d in "${e2e}"/Inductor-*-LTS2-XPU-E2E-Data-*; do
+                cp -r "${d}/." "${e2e}/"
               done
             fi
-          done
-          mkdir -p "${{ github.workspace }}/comparison"
-          python .github/scripts/compare-e2e.py \
-            -t "${{ github.workspace }}/results/target/e2e" \
-            -b "${{ github.workspace }}/results/baseline/e2e" \
-            -o "${{ github.workspace }}/comparison/e2e_comparison.xlsx" \
-            -m "${{ github.workspace }}/comparison/e2e_comparison.md"
-          {
-            echo ""
-            echo "### E2E (target vs baseline)"
-            echo ""
-            if [ -f "${{ github.workspace }}/comparison/e2e_comparison.md" ]; then
-              cat "${{ github.workspace }}/comparison/e2e_comparison.md"
-            else
-              echo "_compare-e2e.py produced no markdown report._"
+            mkdir -p "${work}/${side}/ut" "${work}/${side}/e2e"
+            if [ -d "${{ github.workspace }}/results/${side}/ut" ]; then
+              cp -r "${{ github.workspace }}/results/${side}/ut/." "${work}/${side}/ut/" || true
             fi
-          } >> "${GITHUB_STEP_SUMMARY}"
+            python .github/scripts/acceptance-report/adapt_e2e.py \
+              "${e2e}" "${work}/${side}/e2e"
+          done
 
-      - name: UT comparison (compare-ut.py)
-        id: ut-cmp
+      - name: Generate acceptance report
+        id: report
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ github.token }}
+          ACC_BASE_DIR: ${{ github.workspace }}/report/baseline
+          ACC_TARGET_DIR: ${{ github.workspace }}/report/target
+          ACC_BASE_LABEL: ${{ inputs.test_component }} ${{ inputs.baseline_version }}
+          ACC_TARGET_LABEL: ${{ inputs.test_component }} ${{ inputs.target_version }}
+          ACC_OUT_DIR: ${{ github.workspace }}/comparison
+          ACC_TRACKING_ISSUE: ''
+          ACC_SKIP_ISSUES: '1'
         run: |
           mkdir -p "${{ github.workspace }}/comparison"
-          python .github/scripts/compare-ut.py \
-            -i "${{ github.workspace }}/results/target/ut" \
-               "${{ github.workspace }}/results/baseline/ut" \
-            -o "${{ github.workspace }}/comparison/ut_comparison.xlsx" \
-            -m \
-            --markdown-output "${{ github.workspace }}/comparison/ut_comparison.md" \
-            --no-github
-          {
-            echo ""
-            echo "### UT (target vs baseline)"
-            echo ""
-            if [ -f "${{ github.workspace }}/comparison/ut_comparison.md" ]; then
-              cat "${{ github.workspace }}/comparison/ut_comparison.md"
-            else
-              echo "_compare-ut.py produced no markdown report._"
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"
+          python .github/scripts/acceptance-report/gen_report.py
 
-      - name: Upload comparison summary
+      - name: Upload acceptance report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: acceptance-comparison-summary-${{ github.run_id }}-${{ github.run_attempt }}
+          name: acceptance-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ github.workspace }}/comparison/**
+            ${{ github.workspace }}/comparison/*.html
+            ${{ github.workspace }}/comparison/*.xlsx
           retention-days: 30
           if-no-files-found: warn
