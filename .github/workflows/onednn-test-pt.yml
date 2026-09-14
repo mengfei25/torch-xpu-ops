@@ -13,7 +13,7 @@ concurrency:
 jobs:
   onednn_test_pt:
     name: onednn_test_pt
-    if: ${{ github.repository_owner == 'intel' }}
+    if: ${{ github.repository_owner == 'mengfei25' }}
     runs-on: ubuntu-latest
     steps:
       - name: Print dispatch info
