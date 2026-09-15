@@ -4,7 +4,7 @@ name: OnDemand Acceptance Comparison
 # baseline) in the same workflow run, then compares their results.
 #
 # Test scope is fixed to the acceptance comparison scope:
-#   * UT  : p0 only
+#   * UT  : ut_p0 (inductor/non-inductor/profiling in container, distributed in baremetal)
 #   * E2E : huggingface, timm_models, torchbench
 #           (training amp_fp16 + inference bfloat16, accuracy + performance)
 #
@@ -147,7 +147,7 @@ jobs:
       pytorch: ${{ inputs.pytorch }}
       torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
       python: ${{ inputs.python }}
-      ut: ${{ inputs.test_pattern == 'test_pt_smoke' && 'op_regression' || 'p0'}}
+      ut: ${{ inputs.test_pattern == 'test_pt_smoke' && 'op_regression' || 'ut_p0'}}
       category: target
       skip_summary: true
 
@@ -198,7 +198,7 @@ jobs:
       pytorch: ${{ inputs.pytorch }}
       torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
       python: ${{ inputs.python }}
-      ut: ${{ inputs.test_pattern == 'test_pt_smoke' && 'op_regression' || 'p0'}}
+      ut: ${{ inputs.test_pattern == 'test_pt_smoke' && 'op_regression' || 'ut_p0'}}
       category: baseline
       skip_summary: true
 
@@ -252,7 +252,7 @@ jobs:
             echo "| Test pattern     | ${{ inputs.test_pattern }} |"
             echo "| Triggered by     | ${{ github.actor }} |"
             echo ""
-            echo "Scope: \`${{ inputs.test_pattern }}\` — smoke = op_regression UT + torchbench(hf_Bert,resnet50); otherwise UT=\`p0\`, E2E=huggingface,timm_models,torchbench (training amp_fp16 + inference bfloat16, accuracy+performance)."
+            echo "Scope: \`${{ inputs.test_pattern }}\` — smoke = op_regression UT + torchbench(hf_Bert,resnet50); otherwise UT=\`ut_p0\`, E2E=huggingface,timm_models,torchbench (training amp_fp16 + inference bfloat16, accuracy+performance)."
           } > "${GITHUB_STEP_SUMMARY}"
 
       - name: Download target E2E logs
