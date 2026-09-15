@@ -2528,6 +2528,16 @@ def main():
         with open(gh_sum, "a") as fh:
             fh.write("\n".join(lines) + "\n")
 
+    # ---- acceptance gate: non-zero exit on any regression ----
+    total_reg = sum(s["counts"].get("regression", 0) for s in sections)
+    gh_out = os.environ.get("GITHUB_OUTPUT")
+    if gh_out:
+        with open(gh_out, "a") as fh:
+            fh.write(f"regression_total={total_reg}\n")
+            fh.write(f"has_regression={'true' if total_reg else 'false'}\n")
+    if total_reg:
+        sys.exit(f"Acceptance gate FAILED: {total_reg} regression(s) detected.")
+
 
 if __name__ == "__main__":
     main()
