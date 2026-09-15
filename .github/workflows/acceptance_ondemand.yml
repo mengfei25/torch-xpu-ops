@@ -58,10 +58,19 @@ on:
         type: string
         default: ''
         description: 'Caller id (e.g. onednn-pr-2) for concurrency grouping; a new run cancels the previous one with the same caller.'
-      caller_ref:
+
+      callback_repo:
         type: string
         default: ''
-        description: 'Marker <owner>/<repo>#<pr>@<sha> surfaced in run-name so an external status bridge can map jobs back to the caller PR commit.'
+        description: 'owner/name to post the result commit status back to (empty = no callback).'
+      callback_sha:
+        type: string
+        default: ''
+        description: 'Commit SHA in callback_repo to attach the result status to.'
+      callback_context:
+        type: string
+        default: ''
+        description: 'Commit status context to set in callback_repo on completion.'
 
 permissions: read-all
 
@@ -70,9 +79,42 @@ concurrency:
   cancel-in-progress: true
 
 run-name: >-
-  Acceptance / ${{ inputs.test_component }} [${{ inputs.test_pattern }}] ${{ inputs.target_version }} vs ${{ inputs.baseline_version }} ${{ inputs.caller_ref }}
+  Acceptance / ${{ inputs.test_component }} [${{ inputs.test_pattern }}] ${{ inputs.target_version }} vs ${{ inputs.baseline_version }}
 
 jobs:
+  # ==================================================================
+  # Record callback info early so a cancelled run can still notify the
+  # caller (report-back is skipped on cancellation; a workflow_run handler
+  # picks up this artifact instead).
+  # ==================================================================
+  record-callback:
+    name: record callback
+    if: ${{ inputs.callback_repo != '' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Write callback info
+        env:
+          CB_REPO: ${{ inputs.callback_repo }}
+          CB_SHA: ${{ inputs.callback_sha }}
+          CB_CONTEXT: ${{ inputs.callback_context }}
+          COMPONENT: ${{ inputs.test_component }}
+          PATTERN: ${{ inputs.test_pattern }}
+          TARGET: ${{ inputs.target_version }}
+          BASELINE: ${{ inputs.baseline_version }}
+        run: |
+          mkdir -p cbinfo
+          jq -nc \
+            --arg repo "$CB_REPO" --arg sha "$CB_SHA" --arg ctx "$CB_CONTEXT" --arg comp "$COMPONENT" \
+            --arg pat "$PATTERN" --arg t "$TARGET" --arg b "$BASELINE" \
+            '{callback_repo:$repo, callback_sha:$sha, callback_context:$ctx, component:$comp, pattern:$pat, target:$t, baseline:$b}' \
+            > cbinfo/callback.json
+      - name: Upload callback info
+        uses: actions/upload-artifact@v7
+        with:
+          name: acceptance-callback-info
+          path: cbinfo/callback.json
+          retention-days: 3
+
   # ==================================================================
   # TARGET pipeline
   # ==================================================================
@@ -279,4 +321,37 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-
+  # ==================================================================
+  # Report result back to the caller (event-driven commit-status callback)
+  # ==================================================================
+  report-back:
+    name: report back
+    needs: [target-ut, target-e2e, baseline-ut, baseline-e2e, compare-results]
+    if: ${{ always() && inputs.callback_repo != '' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Post result commit status to caller
+        env:
+          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          CB_REPO: ${{ inputs.callback_repo }}
+          CB_SHA: ${{ inputs.callback_sha }}
+          CB_CONTEXT: ${{ inputs.callback_context }}
+          COMPONENT: ${{ inputs.test_component }}
+          PATTERN: ${{ inputs.test_pattern }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          R_TUT: ${{ needs.target-ut.result }}
+          R_TE2E: ${{ needs.target-e2e.result }}
+          R_BUT: ${{ needs.baseline-ut.result }}
+          R_BE2E: ${{ needs.baseline-e2e.result }}
+          R_CMP: ${{ needs.compare-results.result }}
+        run: |
+          [ -n "$CB_SHA" ] && [ -n "$CB_CONTEXT" ] || { echo "No callback sha/context; skipping."; exit 0; }
+          state=success
+          for r in "$R_TUT" "$R_TE2E" "$R_BUT" "$R_BE2E" "$R_CMP"; do
+            case "$r" in success|skipped) ;; *) state=failure ;; esac
+          done
+          gh api -X POST "repos/${CB_REPO}/statuses/${CB_SHA}" \
+            -f state="$state" \
+            -f context="$CB_CONTEXT" \
+            -f target_url="$RUN_URL" \
+            -f description="${COMPONENT} acceptance (${PATTERN}): ${state}"

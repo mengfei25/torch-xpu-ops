@@ -1,0 +1,48 @@
+name: Acceptance Cancelled Callback
+
+# Safety net for the cross-repo commit status: `report-back` inside
+# acceptance_ondemand.yml is itself skipped when the run is cancelled (e.g. by
+# concurrency). This handler fires on run completion and, only for the
+# `cancelled` conclusion, posts an error status back to the caller so its check
+# does not hang pending. Success/failure are already handled by report-back.
+
+on:
+  workflow_run:
+    workflows: ["OnDemand Acceptance Comparison"]
+    types: [completed]
+
+permissions:
+  actions: read
+
+jobs:
+  notify-cancelled:
+    name: notify cancelled
+    if: ${{ github.event.workflow_run.conclusion == 'cancelled' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download callback info
+        id: dl
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: acceptance-callback-info
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Post cancelled status to caller
+        env:
+          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          [ -f callback.json ] || { echo "No callback info artifact; nothing to do."; exit 0; }
+          repo=$(jq -r '.callback_repo // empty' callback.json)
+          sha=$(jq -r '.callback_sha // empty' callback.json)
+          ctx=$(jq -r '.callback_context // empty' callback.json)
+          comp=$(jq -r '.component // empty' callback.json)
+          pat=$(jq -r '.pattern // empty' callback.json)
+          [ -n "$repo" ] && [ -n "$sha" ] && [ -n "$ctx" ] || { echo "Incomplete callback info; nothing to do."; exit 0; }
+          gh api -X POST "repos/${repo}/statuses/${sha}" \
+            -f state="error" \
+            -f context="$ctx" \
+            -f target_url="$RUN_URL" \
+            -f description="${comp} acceptance (${pat}): cancelled"
