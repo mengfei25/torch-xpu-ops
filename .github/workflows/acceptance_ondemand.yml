@@ -248,37 +248,16 @@ jobs:
           mkdir -p "${{ github.workspace }}/results/baseline/e2e"
           mkdir -p "${{ github.workspace }}/results/baseline/ut"
 
-      - name: Build report inputs
-        run: |
-          # E2E artifacts nest per-suite folders; flatten then reshape to the
-          # gen_report.py schema. UT JUnit xml is used as-is.
-          work="${{ github.workspace }}/report"
-          for side in target baseline; do
-            e2e="${{ github.workspace }}/results/${side}/e2e"
-            if compgen -G "${e2e}/Inductor-*-LTS2-XPU-E2E-Data-*" > /dev/null; then
-              for d in "${e2e}"/Inductor-*-LTS2-XPU-E2E-Data-*; do
-                cp -r "${d}/." "${e2e}/"
-              done
-            fi
-            mkdir -p "${work}/${side}/ut" "${work}/${side}/e2e"
-            if [ -d "${{ github.workspace }}/results/${side}/ut" ]; then
-              cp -r "${{ github.workspace }}/results/${side}/ut/." "${work}/${side}/ut/" || true
-            fi
-            python .github/scripts/acceptance-report/adapt_e2e.py \
-              "${e2e}" "${work}/${side}/e2e"
-          done
-
       - name: Generate acceptance report
         id: report
         continue-on-error: true
         env:
-          ACC_BASE_DIR: ${{ github.workspace }}/report/baseline
-          ACC_TARGET_DIR: ${{ github.workspace }}/report/target
-          ACC_BASE_LABEL: ${{ inputs.test_component }} ${{ inputs.baseline_version }}
-          ACC_TARGET_LABEL: ${{ inputs.test_component }} ${{ inputs.target_version }}
+          ACC_BASE_DIR: ${{ github.workspace }}/results/baseline
+          ACC_TARGET_DIR: ${{ github.workspace }}/results/target
+          ACC_COMPONENT: ${{ inputs.test_component }}
+          ACC_BASE_LABEL: ${{ inputs.baseline_version }}
+          ACC_TARGET_LABEL: ${{ inputs.target_version }}
           ACC_OUT_DIR: ${{ github.workspace }}/comparison
-          ACC_TRACKING_ISSUE: ''
-          ACC_SKIP_ISSUES: '1'
         run: |
           mkdir -p "${{ github.workspace }}/comparison"
           python .github/scripts/acceptance-report/gen_report.py

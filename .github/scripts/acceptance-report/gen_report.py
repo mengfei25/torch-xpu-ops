@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Triton 3.8.0 upgrade report generator (BMG).
+"""Component acceptance comparison report generator.
 
-Compares baseline (Triton 3.7.2) vs target (Triton 3.8.0) across:
+Compares a baseline vs a target build of one component (e.g. oneDNN, Triton)
+across:
   1. Unit Tests  - JUnit xml files, key = (test file, test class, test name)
-  2. Accuracy    - *accuracy.csv,    key = (suite, dtype, mode, name, scenario)
+  2. Accuracy    - *accuracy.csv,   key = (suite, dtype, mode, name, scenario)
   3. Performance - *performance.csv, key = (suite, dtype, mode, name, scenario)
 
-Outputs a modern HTML report and an XLSX workbook.
-Standard library only (no pandas / openpyxl).
+Component and versions come from ACC_COMPONENT / ACC_TARGET_LABEL /
+ACC_BASE_LABEL (a label may be "<component> <version>"). Emits an HTML report,
+an XLSX workbook, and a brief GITHUB_STEP_SUMMARY. Standard library only.
 """
 
 import csv
@@ -22,70 +24,31 @@ import zipfile
 from collections import defaultdict
 from datetime import datetime, timezone
 
-try:
-    import fetch_issues            # unified local issue cache (~/torch-xpu-ops.issues)
-except ImportError:
-    fetch_issues = None
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.environ.get("ACC_BASE_DIR") or os.path.join(HERE, "3.7.2")
 TARGET_DIR = os.environ.get("ACC_TARGET_DIR") or os.path.join(HERE, "3.8.0")
-BASE_LABEL = os.environ.get("ACC_BASE_LABEL", "Triton 3.7.2")
-TARGET_LABEL = os.environ.get("ACC_TARGET_LABEL", "Triton 3.8.0")
+BASE_LABEL = os.environ.get("ACC_BASE_LABEL", "baseline")
+TARGET_LABEL = os.environ.get("ACC_TARGET_LABEL", "target")
 OUT_DIR = os.environ.get("ACC_OUT_DIR") or HERE
-UT_ISSUES_FILE = os.path.join(HERE, "ut_issues.txt")
-ACC_ISSUES_FILE = os.path.join(HERE, "acc_issues.txt")
-PERF_ISSUES_FILE = os.path.join(HERE, "perf_issues.txt")
-
-# Acceptance terms for key (model-name) issue matching: a case only counts as
-# already tracked when the issue text also references what this report is about,
-# e.g. "triton 3.8.0". Derived from TARGET_LABEL (all tokens must be present);
-# override ACCEPTANCE_TERMS to change the required phrase(s).
-ACCEPTANCE_TERMS = [t for t in TARGET_LABEL.lower().split() if t]
-
-# Previous-version tracking: issues that reference an earlier version of the same
-# component are listed in a separate "Previous <component> Issues" section (the
-# tab title uses the component name from TARGET_LABEL, e.g. Triton / oneAPI /
-# oneDNN / OMIX; it falls back to "Previous Release Issues" when the label has no
-# component token). An issue qualifies only when it is **component-related** (its
-# text names the component, `PREV_COMPONENT_TERMS`) AND references an earlier
-# version (`PREV_RELEASE_TERMS`, auto-derived numeric MAJOR.MINOR, e.g.
-# 2.14 -> 2.13, 2.12, 2.11, 2.10). This keeps the tab dynamic/component-scoped
-# rather than matching any issue that merely mentions a bare version number; when
-# the label has no component token (a release-only label like "2.14") the gate
-# falls back to the bare previous-version numbers. Set PREV_RELEASE_TERMS to [] to
-# hide the section, or override either list with explicit tokens.
-def _derive_prev_terms(label, n=4):
-    m = re.search(r"(\d+)\.(\d+)", label or "")
-    if not m:
-        return []
-    maj, minor = int(m.group(1)), int(m.group(2))
-    return [f"{maj}.{minor - k}" for k in range(1, n + 1) if minor - k >= 0]
 
 
-def _derive_component(label):
-    """Component name = TARGET_LABEL with version-like tokens (e.g. 3.8.0, v3.12.2)
-    removed, so "Triton 3.8.0" -> "Triton" and "oneDNN v3.12.2" -> "oneDNN".
-    Empty when the label is version-only (e.g. "2.14")."""
-    toks = [t for t in (label or "").split()
-            if not re.fullmatch(r"v?\d+(?:\.\d+)*", t)]
-    return " ".join(toks).strip()
+def _split_component_version(label):
+    """Split a label like 'onednn v3.13.2' into (component, version)."""
+    toks = (label or "").split()
+    vers = [t for t in toks if re.fullmatch(r"v?\d[\w.+-]*", t)]
+    comp = " ".join(t for t in toks if t not in vers).strip()
+    return comp, (" ".join(vers).strip() or (label or ""))
 
 
-PREV_RELEASE_TERMS = _derive_prev_terms(TARGET_LABEL)
-PREV_COMPONENT = _derive_component(TARGET_LABEL)
-# Component tokens the prev-issues tab is scoped to (empty for release-only labels).
-PREV_COMPONENT_TERMS = [t for t in PREV_COMPONENT.lower().split() if t]
-PREV_ISSUES_TITLE = (f"Previous {PREV_COMPONENT} Issues"
-                     if PREV_COMPONENT else "Previous Release Issues")
+# Component under test and its two versions, derived from the labels (or set
+# ACC_COMPONENT explicitly) so the report is not tied to any specific component.
+COMPONENT = os.environ.get("ACC_COMPONENT") or _split_component_version(TARGET_LABEL)[0] or "component"
+TARGET_VERSION = _split_component_version(TARGET_LABEL)[1]
+BASE_VERSION = _split_component_version(BASE_LABEL)[1]
 
 # Blank-target classification: a UT case that passed in baseline but is blank in
-# target is either REMOVED (deselected on the target run -- pytest does not even
-# collect it) or NOT-RUN / lost (collectable but the run skipped it). The removed
-# vs lost decision is made outside the generator by collecting the cases with
-# pytest on the target node (see SKILL.md): REMOVED_LIST_FILE feeds the deselected
-# keys back in, and a re-run of the lost cases is merged into TARGET_DIR as
-# ordinary results.
+# target is REMOVED (deselected: pytest did not collect it, fed back via
+# REMOVED_LIST_FILE) or NOT-RUN / lost (collectable but the run skipped it).
 REMOVED_MSG = "Deselected on target (pytest did not collect this case)"
 CRASH_MSG = "Collection failure: file crashed at import, no cases run"
 NOT_RUN_MSG = "Baseline passed but target did not run (collectable but skipped, not a code regression)"
@@ -116,24 +79,11 @@ def load_removed_list(path):
     return keys
 
 
-# Overall upgrade tracking issue. Broad result categories that no per-model issue
-# names (e.g. all E2E performance drops) are attributed to it. "" disables.
-TRACKING_ISSUE = os.environ.get("ACC_TRACKING_ISSUE", "4379")
-TRACKING_PERF_DROP_CATS = {"drop"}
-
 # Path to a TSV (file<TAB>class<TAB>name) of baseline-pass / target-blank cases
 # that pytest could NOT collect on the target node (deselected => removed). Such
 # cases are labelled REMOVED; every other baseline-pass / target-blank case is
 # NOT-RUN (lost) and can be re-run and merged back. "" disables.
 REMOVED_LIST_FILE = ""
-
-# Key dimensions used to match a failing case to a tracking issue (a.txt rules).
-# A case's keys are its model name plus the dtype and mode it ran under. An issue
-# tracks the case when its text contains the model and, for each of dtype/mode,
-# either the case's value or no value from that dimension at all (a "global"
-# issue that covers every value of the unspecified dimension).
-DTYPE_VOCAB = ["amp_bf16", "amp_fp16", "bfloat16", "float16", "float32", "int8"]
-MODE_VOCAB = ["inference", "training"]
 
 
 PASS_ACC = {"pass", "pass_due_to_skip"}
@@ -277,7 +227,7 @@ def parse_ut(root):
                 status in passed / failure / error / skipped / xfail / others.
     msg_map:    {(test_file, class, name): brief message} for failure/error only.
     """
-    # priority when a case appears more than once (a.txt):
+    # priority when a case appears more than once:
     # passed > skipped > xfail > others > failed(failure) > error  (higher kept)
     order = {"passed": 6, "skipped": 5, "xfail": 4, "others": 3, "failure": 2, "error": 1}
     result = {}
@@ -320,7 +270,7 @@ def parse_ut(root):
 
 
 def ut_status_summary(status_map):
-    """Per-version breakdown matching a.txt columns."""
+    """Per-version status breakdown."""
     from collections import Counter
     c = Counter(status_map.values())
     total = sum(c.values())
@@ -340,520 +290,6 @@ def ut_status_summary(status_map):
     }
 
 
-def parse_ut_issues(path):
-    """Parse the UT issue-tracking file.
-
-    Format (one block per issue in intel/torch-xpu-ops)::
-
-        Issue: 1234
-        Link: https://github.com/intel/torch-xpu-ops/issues/1234
-        State: opened            # opened | closed
-        Cases:
-        <category>,<test class>,<test name>          # not fixed
-        ~~<category>,<test class>,<test name>~~      # fixed (struck out)
-
-    Returns (issues, lookup) where
-        issues = [{"id", "url", "state"}]
-        lookup = {(test_class, test_name): (issue_index, fixed_bool)}
-    Matching is on (test class, test name).
-    """
-    issues, lookup = [], {}
-    if not os.path.isfile(path):
-        return issues, lookup
-    cur_idx = -1
-    in_cases = False
-    with open(path) as fh:
-        for raw in fh:
-            s = raw.strip()
-            if not s or s.startswith("#"):
-                continue
-            low = s.lower()
-            if low.startswith("issue:"):
-                issues.append({"id": s.split(":", 1)[1].strip(), "url": "", "state": "opened"})
-                cur_idx = len(issues) - 1
-                in_cases = False
-            elif low.startswith("link:"):
-                if cur_idx >= 0:
-                    issues[cur_idx]["url"] = s.split(":", 1)[1].strip()
-            elif low.startswith("state:"):
-                if cur_idx >= 0:
-                    issues[cur_idx]["state"] = s.split(":", 1)[1].strip().lower()
-            elif low == "cases:":
-                in_cases = True
-            elif in_cases and cur_idx >= 0:
-                fixed = s.startswith("~~") and s.endswith("~~")
-                body = s[2:-2] if fixed else s
-                parts = body.split(",", 2)
-                if len(parts) >= 3:
-                    cls, name = parts[1].strip(), parts[2].strip()
-                    lookup[(cls, name)] = (cur_idx, fixed)
-    return issues, lookup
-
-
-def ut_issue_for(lookup, issues, cls, name):
-    """Return (issue_id, url, status) for a case, or (None, None, None)."""
-    hit = lookup.get(_ut_key(cls, name))
-    if hit is None:
-        return None, None, None
-    idx, fixed = hit
-    issue = issues[idx]
-    status = "fixed" if fixed else issue["state"]
-    return issue["id"], issue["url"], status
-
-
-# ---- accuracy (E2E) helpers ------------------------------------------------ #
-def parse_acc_issues(path):
-    """Issue tracking for E2E accuracy failures.
-
-    Two match modes are supported per issue block (opened OR closed both count):
-      * Cases:  5-part E2E key   suite,dtype,mode,name,scenario   (~~...~~ = fixed)
-      * Errors: one error-message signature per line; a failing case matches when
-                its extracted error message is *similar* to any signature.
-    Returns (issues, lookup) where issues carry an "errors" list and lookup is the
-    key-based map keyed by (suite,dtype,mode,name,scenario).
-    """
-    issues, lookup = [], {}
-    if not os.path.isfile(path):
-        return issues, lookup
-    cur_idx, mode = -1, None
-    with open(path) as fh:
-        for raw in fh:
-            s = raw.strip()
-            if not s or s.startswith("#"):
-                continue
-            low = s.lower()
-            if low.startswith("issue:"):
-                issues.append({"id": s.split(":", 1)[1].strip(), "url": "",
-                               "state": "opened", "errors": []})
-                cur_idx, mode = len(issues) - 1, None
-            elif low.startswith("link:"):
-                if cur_idx >= 0:
-                    issues[cur_idx]["url"] = s.split(":", 1)[1].strip()
-            elif low.startswith("state:"):
-                if cur_idx >= 0:
-                    issues[cur_idx]["state"] = s.split(":", 1)[1].strip().lower()
-            elif low == "cases:":
-                mode = "cases"
-            elif low == "errors:":
-                mode = "errors"
-            elif mode == "cases" and cur_idx >= 0:
-                fixed = s.startswith("~~") and s.endswith("~~")
-                body = s[2:-2].strip() if fixed else s
-                parts = [p.strip() for p in body.split(",")]
-                if len(parts) >= 5:
-                    key = (parts[0], parts[1], parts[2], parts[3], parts[4])
-                    lookup[key] = (cur_idx, fixed)
-            elif mode == "errors" and cur_idx >= 0:
-                fixed = s.startswith("~~") and s.endswith("~~")
-                body = s[2:-2].strip() if fixed else s
-                issues[cur_idx]["errors"].append((body, fixed))
-    return issues, lookup
-
-
-def _norm_err(msg):
-    """Normalize an error message for similarity matching (drop numbers/paths/hex)."""
-    s = (msg or "").lower()
-    s = re.sub(r"0x[0-9a-f]+", " ", s)
-    s = re.sub(r"[\w./\\-]*/[\w./\\-]+", " ", s)   # file paths
-    s = re.sub(r"\d+(\.\d+)?", " ", s)              # numbers / sizes
-    s = re.sub(r"[^a-z_]+", " ", s)                 # keep letters + underscore
-    return re.sub(r"\s+", " ", s).strip()
-
-
-def _err_similar(a, b, threshold=0.9):
-    """True when two normalized error signatures are the same problem."""
-    if not a or not b:
-        return False
-    if len(a) >= 12 and len(b) >= 12 and (a in b or b in a):
-        return True
-    return difflib.SequenceMatcher(None, a, b).ratio() >= threshold
-
-
-def build_acc_issue_lookup(rows, messages, issues, key_lookup, fail_pred):
-    """Match failing cases to tracking issues (a.txt rules 1-5).
-
-    `issues` is already restricted (build_error_issues_from_cache) to OPEN issues
-    whose title/body contain the acceptance term (rules 1 & 3). For every failing
-    target row (fail_pred(row) is True) not already matched by key:
-      * key pass (rule 2 & 5): the issue text (title/body/comments) must contain
-        the case's model name and, for dtype and mode, either the case's value or
-        no value from that dimension (a "global" issue covering all values);
-      * error-similarity pass: fallback for issues whose error signature matches
-        the case's error message.
-    Returns a lookup keyed by the row key -> (issue_idx, fixed).
-    fail_pred may be a callable(row) or an iterable of row categories.
-    """
-    if not callable(fail_pred):
-        cats = set(fail_pred)
-        fail_pred = lambda r: r["cat"] in cats  # noqa: E731
-    lookup = dict(key_lookup)
-
-    # key pass (rules 2 & 5): model + dtype/mode with global fallback.
-    key_hit = {}
-    for r in rows:
-        if r["key"] in lookup or not fail_pred(r):
-            continue
-        k = r["key"]
-        model = k[3] if len(k) > 3 else ""
-        dtype = k[1] if len(k) > 1 else ""
-        mode = k[2] if len(k) > 2 else ""
-        if not model or len(model) < 3:
-            continue
-        ck = (model, dtype, mode)
-        if ck not in key_hit:
-            key_hit[ck] = _best_issue_for_keys(model, dtype, mode, issues)
-        idx = key_hit[ck]
-        if idx is not None:
-            lookup[r["key"]] = (idx, False)
-
-    # error-message similarity pass (fallback).
-    sigs = []
-    for idx, iss in enumerate(issues):
-        for text, fixed in iss.get("errors", []):
-            n = _norm_err(text)
-            if n:
-                sigs.append((n, idx, fixed))
-    for r in rows:
-        if r["key"] in lookup or not fail_pred(r):
-            continue
-        cmsg = _norm_err(messages.get(r["key"], ""))
-        if not cmsg:
-            continue
-        for n, idx, fixed in sigs:
-            if _err_similar(cmsg, n):
-                lookup[r["key"]] = (idx, fixed)
-                break
-    return lookup
-
-
-def _acceptance_ok(text):
-    """True when the issue text references this report's upgrade (ACCEPTANCE_TERMS).
-
-    All terms must be present (case-insensitive). Empty ACCEPTANCE_TERMS disables
-    the gate. `text` is expected to already be lower-cased.
-    """
-    return all(t in text for t in ACCEPTANCE_TERMS) if ACCEPTANCE_TERMS else True
-
-
-_TOK_RE_CACHE = {}
-
-
-def _tok_re(value):
-    """Compiled whole-token regex for `value` (cached)."""
-    rx = _TOK_RE_CACHE.get(value)
-    if rx is None:
-        rx = re.compile(r"(?<![\w-])" + re.escape(value.lower()) + r"(?![\w-])")
-        _TOK_RE_CACHE[value] = rx
-    return rx
-
-
-def _token_in(value, text):
-    """True when `value` appears as a whole token in (lower-cased) `text`."""
-    return bool(value and _tok_re(value).search(text))
-
-
-def _dim_match(value, vocab, text):
-    """Score how an issue's text covers one key dimension (dtype or mode).
-
-    Returns 2 when the case's value is named (specific), 1 when the dimension is
-    unspecified in the issue (a global issue, rule 5), or None when the issue
-    names a different value of that dimension (a conflict -> not a match).
-    """
-    if value and _token_in(value, text):
-        return 2
-    if any(_token_in(v, text) for v in vocab if v != value):
-        return None
-    return 1
-
-
-def _model_lines(model, text):
-    """(model_lines, specificity) for the model (or its family) in `text`.
-
-    Matches the longest underscore-prefix of the model name that appears as a
-    whole token, so a family name like "detectron2" tracks every "detectron2_*"
-    case (rule 5). `model_lines` are the text lines mentioning that name, used to
-    scope the mode dimension so e.g. "training" for other models does not attach
-    to a "Detectron2 inference" tracker. Returns ("", None) when not named.
-    Prefixes shorter than 4 chars are ignored to avoid over-broad families.
-    """
-    parts = model.split("_")
-    for i in range(len(parts), 0, -1):
-        prefix = "_".join(parts[:i])
-        if len(prefix) < 4:
-            break
-        rx = _tok_re(prefix)
-        if rx.search(text):
-            lines = [ln for ln in text.split("\n") if rx.search(ln)]
-            return "\n".join(lines), i
-    return "", None
-
-
-def _best_issue_for_keys(model, dtype, mode, issues):
-    """Index of the best issue tracking (model, dtype, mode), or None.
-
-    An issue matches when its text names the model (or its family), the mode
-    (scoped to the model's lines) does not conflict, and the dtype (whole text)
-    does not conflict (rules 2 & 5). Preference: most specific match (fuller
-    model name, dtype/mode named), then the highest issue number (most recent
-    tracker). `issues` is already filtered to open + acceptance issues.
-    """
-    best = None  # (score, number, idx)
-    for idx, iss in enumerate(issues):
-        text = iss.get("text", "")
-        if not text:
-            continue
-        mlines, mscore = _model_lines(model, text)
-        if mscore is None:
-            continue
-        ds = _dim_match(dtype, DTYPE_VOCAB, text)     # dtype: whole text
-        if ds is None:
-            continue
-        ms = _dim_match(mode, MODE_VOCAB, mlines)      # mode: model's lines only
-        if ms is None:
-            continue
-        cand = (mscore + ds + ms, iss.get("number", 0), idx)
-        if best is None or cand > best:
-            best = cand
-    return best[2] if best else None
-
-
-def acc_issue_for(lookup, issues, key):
-    hit = lookup.get(key)
-    if hit is None:
-        return None, None, None
-    idx, fixed = hit
-    issue = issues[idx]
-    return issue["id"], issue["url"], ("fixed" if fixed else issue["state"])
-
-
-def attach_category_issue(rows, lookup, issues, issue_id, cats):
-    """Attribute a whole result category (e.g. perf 'drop') to a tracking issue.
-
-    Used for broad trackers (e.g. #4379 covering all Triton 3.8.0 performance
-    drops) that do not name individual models. Only fills rows in `cats` that are
-    not already matched. Mutates and returns `lookup`.
-    """
-    if not issue_id:
-        return lookup
-    idx = next((i for i, iss in enumerate(issues)
-                if str(iss.get("id")) == str(issue_id)), None)
-    if idx is None:
-        return lookup
-    cats = set(cats)
-    for r in rows:
-        if r["cat"] in cats and r["key"] not in lookup:
-            lookup[r["key"]] = (idx, False)
-    return lookup
-
-
-# ---- issue sources from the unified local cache (~/torch-xpu-ops.issues) ---- #
-def load_issue_cache(verbose=True):
-    """Return the issue list for matching.
-
-    Prefers the complete per-issue directory cache (~/torch-xpu-ops.issues.dir,
-    written by `fetch_issues.py --dir`), which is gap-free. Falls back to the
-    monolithic cache sync when the directory is absent. Returns [] when the cache
-    module is unavailable, so report generation degrades gracefully.
-    """
-    if fetch_issues is None:
-        if verbose:
-            print("  fetch_issues module unavailable; skipping issue matching.")
-        return []
-    dir_issues = fetch_issues.load_dir() if hasattr(fetch_issues, "load_dir") else []
-    if dir_issues:
-        if verbose:
-            print(f"  Issue cache (dir): {len(dir_issues)} issues "
-                  f"-> {fetch_issues.DIR_PATH}")
-        return dir_issues
-    cache = fetch_issues.sync(verbose=verbose)
-    issues = list((cache or {}).get("issues", {}).values())
-    if verbose:
-        tag = " (partial)" if (cache or {}).get("partial") else ""
-        print(f"  Issue cache: {len(issues)} issues{tag}")
-    return issues
-
-
-def _has_label(issue, wanted):
-    return bool(wanted & {x.lower() for x in issue.get("labels", [])})
-
-
-def _issue_state(issue):
-    return "closed" if issue.get("state") == "closed" else "opened"
-
-
-def _target_related(text):
-    """True when the (lower-cased) issue text references this upgrade's target
-    label as whole tokens (ACCEPTANCE_TERMS, e.g. "2.14")."""
-    return bool(ACCEPTANCE_TERMS) and all(_token_in(t, text) for t in ACCEPTANCE_TERMS)
-
-
-def target_issues(issue_list):
-    """Cached issues that mention the target label, ordered open-first / newest.
-    Status: closed; fixed (open but with ~~struck~~ cases); open."""
-    rank = {"open": 0, "fixed": 1, "closed": 2}
-    items = []
-    for it in issue_list:
-        text = (str(it.get("title", "")) + "\n" + str(it.get("body", ""))).lower()
-        if not _target_related(text):
-            continue
-        num = str(it.get("number", ""))
-        items.append({"num": num, "url": it.get("url", ""),
-                      "status": _issue_status(it), "category": _issue_category(it),
-                      "opened": (it.get("created_at", "") or "")[:10],
-                      "reporter": it.get("user", "") or "",
-                      "title": it.get("title", "") or "",
-                      "labels": [str(x) for x in it.get("labels", [])]})
-    items.sort(key=lambda x: (rank.get(x["status"], 0),
-                              -(int(x["num"]) if x["num"].isdigit() else 0)))
-    return items
-
-
-def prev_release_issues(issue_list):
-    """Open cached issues that reference a *previous* version of this component
-    (component-scoped: `PREV_COMPONENT_TERMS` present) and an earlier version
-    number (`PREV_RELEASE_TERMS`), but not the current target label, newest first.
-    Complementary to target_issues so the two sections do not overlap. When the
-    label has no component token, the component gate is skipped and matching falls
-    back to the bare previous-version numbers."""
-    if not PREV_RELEASE_TERMS:
-        return []
-    items = []
-    for it in issue_list:
-        if _issue_status(it) != "open":            # previous-version tab lists open only
-            continue
-        text = (str(it.get("title", "")) + "\n" + str(it.get("body", ""))).lower()
-        if _target_related(text):
-            continue
-        if PREV_COMPONENT_TERMS and not all(_token_in(t, text) for t in PREV_COMPONENT_TERMS):
-            continue                               # component-related only, not any bare version
-        if not any(_token_in(t, text) for t in PREV_RELEASE_TERMS):
-            continue
-        num = str(it.get("number", ""))
-        items.append({"num": num, "url": it.get("url", ""),
-                      "status": _issue_status(it), "category": _issue_category(it),
-                      "opened": (it.get("created_at", "") or "")[:10],
-                      "reporter": it.get("user", "") or "",
-                      "title": it.get("title", "") or "",
-                      "labels": [str(x) for x in it.get("labels", [])]})
-    items.sort(key=lambda x: -(int(x["num"]) if x["num"].isdigit() else 0))
-    return items
-
-
-def _issue_status(issue):
-    """closed; 'fixed' when an open issue has struck-through (~~...~~) cases; else open."""
-    if issue.get("state") == "closed":
-        return "closed"
-    return "fixed" if re.search(r"~~.+?~~", issue.get("body", "") or "") else "open"
-
-
-def _issue_category(issue):
-    """One of UT / Accuracy / Performance / Others, from labels then title+body."""
-    labs = {str(l).lower() for l in issue.get("labels", [])}
-    if "module: ut" in labs or "ut" in labs:
-        return "UT"
-    if any("accuracy" in l for l in labs):
-        return "Accuracy"
-    if any("performance" in l for l in labs):
-        return "Performance"
-    body = issue.get("body", "") or ""
-    text = ((issue.get("title", "") or "") + " " + body).lower()
-    if "::" in body or "test_" in text:
-        return "UT"
-    if "accuracy" in text:
-        return "Accuracy"
-    if "perf" in text:
-        return "Performance"
-    return "Others"
-
-
-def build_ut_issues_from_cache(issue_list):
-    """(issues, lookup) for UT: match failing cases to tracking issues across ALL
-    cached issues (any label), over an open-first / most-recent ranking. Two
-    passes: (1) curated `Cases:` blocks (authoritative, carry fixed status); then
-    (2) free-form pytest `file::Class::name` node ids in the title/body for issues
-    that describe cases in prose with no `Cases:` block (e.g. #4253), filling only
-    keys the curated pass did not claim. First issue to claim a `(short_class,
-    name)` key wins."""
-    issues, lookup = [], {}
-    if fetch_issues is None:
-        return issues, lookup
-    ranked = sorted(issue_list,
-                    key=lambda x: (_issue_state(x) == "closed", -x.get("number", 0)))
-    idx_by_num = {}
-
-    def _idx(it):
-        num = str(it["number"])
-        if num not in idx_by_num:
-            idx_by_num[num] = len(issues)
-            issues.append({"id": num, "url": it.get("url", ""),
-                           "state": _issue_state(it)})
-        return idx_by_num[num]
-
-    for it in ranked:                                  # pass 1: curated Cases: blocks
-        cases = fetch_issues.parse_cases(it.get("body", ""))
-        if not cases:
-            continue
-        idx = None
-        for cls, name, fixed in cases:
-            key = _ut_key(cls, name)
-            if key in lookup:
-                continue
-            if idx is None:
-                idx = _idx(it)
-            lookup[key] = (idx, fixed)
-
-    if hasattr(fetch_issues, "extract_ut_nodeids"):    # pass 2: free-form node ids
-        for it in ranked:
-            nids = fetch_issues.extract_ut_nodeids(
-                "\n".join([it.get("title", ""), it.get("body", "")]))
-            if not nids:
-                continue
-            idx = None
-            for cls, name in nids:
-                key = _ut_key(cls, name)
-                if key in lookup:
-                    continue
-                if idx is None:
-                    idx = _idx(it)
-                lookup[key] = (idx, False)
-    return issues, lookup
-
-
-def build_error_issues_from_cache(issue_list, labels=None):
-    """Issues eligible to track a case, per a.txt matching rules.
-
-    Only issues that are OPEN (rule 3) and whose title/body contain the
-    acceptance term (rule 1, e.g. "triton 3.8.0") are kept. labels=None matches
-    against every such issue; otherwise only issues carrying one of the given
-    labels. Each entry:
-        {id,url,state,number,errors:[(sig,0)],head_text,text}
-
-    `head_text` is the lower-cased title + body (acceptance check); `text` adds
-    comments and is used for key matching (rule 2/5). Issues without an
-    extractable error signature are still included so they can match by key.
-    """
-    if fetch_issues is None:
-        return []
-    want = {l.lower() for l in labels} if labels else None
-    out = []
-    for it in sorted(issue_list, key=lambda x: x.get("number", 0)):
-        if want is not None and not _has_label(it, want):
-            continue
-        if _issue_state(it) == "closed":            # rule 3: only open issues track cases
-            continue
-        head = "\n".join([it.get("title", ""), it.get("body", "")]).lower()
-        if not _acceptance_ok(head):                # rule 1: acceptance term in title/body
-            continue
-        text = "\n".join([it.get("title", ""), it.get("body", ""),
-                          it.get("comments", "")]).lower()
-        sigs = fetch_issues.extract_signatures(it.get("title", ""), it.get("body", ""))
-        out.append({"id": str(it["number"]), "url": it.get("url", ""),
-                    "state": _issue_state(it), "number": it.get("number", 0),
-                    "errors": [(s, False) for s in sigs],
-                    "head_text": head, "text": text})
-    return out
-
-
 def acc_bucket(value):
     """Classify an accuracy status into Passed / Failed / Notrun."""
     if value in PASS_ACC:
@@ -868,7 +304,7 @@ def acc_value_map(acc_map):
 
 
 def acc_status_summary(value_map):
-    """a.txt columns: Total, Passed, Passrate, Failed, Notrun."""
+    """Status columns: Total, Passed, Passrate, Failed, Notrun."""
     from collections import Counter
     c = Counter(acc_bucket(v) for v in value_map.values())
     total = sum(c.values())
@@ -890,7 +326,7 @@ def acc_suite_summary(value_map):
 
 
 def compare_acc(base_vmap, target_vmap):
-    """Pass-based comparison for E2E (accuracy / pt2e-accuracy).
+    """Pass-based comparison for E2E accuracy.
 
     improvement : target pass, baseline not pass (or null)
     regression  : baseline pass, target not pass (or null)
@@ -1238,8 +674,8 @@ def _read_csv(path):
 def parse_accuracy(root, pt2e=False):
     """Return {(suite,dtype,mode,name,scenario): {'value':.., 'raw':row}}.
 
-    Dedups repeated keys by priority (a.txt): non-pt2e pass(contains) > fail_accuracy
-    > out of memory > others; pt2e top1 >0 larger > >0 smaller > =0 > failed > others.
+    Dedups repeated keys by priority: pass(contains) > fail_accuracy
+    > out of memory > others.
     """
     result = {}
     best = {}
@@ -1263,54 +699,9 @@ def parse_accuracy(root, pt2e=False):
     return result
 
 
-def parse_performance(root, pt2e=False):
-    """Return {key: {'speedup':float|None,'raw':row}}.
-
-    For pt2e the metric is throughput and the key includes quantization to stay unique.
-    """
-    result = {}
-    for path in find_files(root, r"-performance\.csv$"):
-        is_pt2e = "pt2e" in os.path.basename(path)
-        if is_pt2e != pt2e:
-            continue
-        for row in _read_csv(path):
-            base_key = (row.get("suite", ""), row.get("dtype", ""), row.get("mode", ""),
-                        row.get("name", ""), row.get("scenario", ""))
-            if pt2e:
-                key = base_key + (row.get("quantization", ""),)
-                metric_raw = row.get("throughput", "")
-            else:
-                key = base_key
-                metric_raw = row.get("speedup", "")
-            try:
-                metric = float(metric_raw)
-            except (TypeError, ValueError):
-                metric = None
-            result[key] = {"metric": metric, "metric_raw": metric_raw, "raw": row}
-    return result
-
-
 # --------------------------------------------------------------------------- #
 # Comparison
 # --------------------------------------------------------------------------- #
-def classify_status(base, target, is_pass):
-    """Generic status comparison. is_pass(value)->bool. Returns category string."""
-    if base is None and target is None:
-        return "unknown"
-    if base is None:
-        return "new"
-    if target is None:
-        return "removed"
-    bp, tp = is_pass(base), is_pass(target)
-    if bp and tp:
-        return "pass"          # consistently pass
-    if not bp and not tp:
-        return "fail"          # consistently fail
-    if bp and not tp:
-        return "regression"    # was pass, now fail
-    return "improvement"       # was fail, now pass
-
-
 CATEGORY_ORDER = ["regression", "improvement", "new", "removed", "crash", "timeout", "not_run", "fail", "pass", "others", "unknown"]
 CATEGORY_LABEL = {
     "regression": "Regression",
@@ -1325,21 +716,6 @@ CATEGORY_LABEL = {
     "others": "Other Change",
     "unknown": "Unknown",
 }
-
-
-def compare_status_set(base_map, target_map, is_pass, value_of):
-    """base_map/target_map: {key: entry}. value_of(entry)->comparable value."""
-    rows = []
-    counts = defaultdict(int)
-    for key in sorted(set(base_map) | set(target_map)):
-        b = base_map.get(key)
-        t = target_map.get(key)
-        bv = value_of(b) if b is not None else None
-        tv = value_of(t) if t is not None else None
-        cat = classify_status(bv, tv, is_pass)
-        counts[cat] += 1
-        rows.append({"key": key, "base": bv, "target": tv, "cat": cat})
-    return rows, counts
 
 
 def compare_ut(base_map, target_map):
@@ -1378,40 +754,6 @@ def compare_ut(base_map, target_map):
             cat = "others"
         counts[cat] += 1
         rows.append({"key": key, "base": b, "target": t, "cat": cat})
-    return rows, counts
-
-
-def compare_performance(base_map, target_map):
-    rows = []
-    counts = defaultdict(int)
-    for key in sorted(set(base_map) | set(target_map)):
-        b = base_map.get(key)
-        t = target_map.get(key)
-        bm = b["metric"] if b else None
-        tm = t["metric"] if t else None
-        if b is None:
-            cat = "new"
-        elif t is None:
-            cat = "removed"
-        elif bm is None or tm is None:
-            cat = "fail" if (bm is None and tm is None) else (
-                "regression" if tm is None else "improvement")
-        else:
-            if bm == 0:
-                cat = "pass"
-            else:
-                ratio = tm / bm
-                if ratio < PERF_REG_THRESHOLD:
-                    cat = "regression"
-                elif ratio > PERF_IMP_THRESHOLD:
-                    cat = "improvement"
-                else:
-                    cat = "pass"
-        ratio = (tm / bm) if (bm and tm and bm != 0) else None
-        counts[cat] += 1
-        rows.append({"key": key, "base": bm, "target": tm, "ratio": ratio,
-                     "base_raw": b["metric_raw"] if b else "", 
-                     "target_raw": t["metric_raw"] if t else "", "cat": cat})
     return rows, counts
 
 
@@ -1931,9 +1273,7 @@ document.addEventListener('DOMContentLoaded',()=>{ gMakeFilters('tbl_ut',7,utCol
 
 
 ACC_NS = {"P": "ACC", "p": "acc", "tid": "tbl_accd", "bid": "accd", "panel": "acc", "csv": "accuracy"}
-ACC_NS_OFF = {"P": "OAC", "p": "oac", "tid": "tbl_oacd", "bid": "oacd", "panel": "acc_off", "csv": "accuracy_official"}
 PF_NS = {"P": "PF", "p": "pf", "tid": "tbl_pfd", "bid": "pfd", "panel": "perf", "csv": "performance"}
-PF_NS_OFF = {"P": "OPF", "p": "opf", "tid": "tbl_opfd", "bid": "opfd", "panel": "perf_off", "csv": "performance_official"}
 
 
 def _ns_js(js, old, new):
@@ -2293,140 +1633,6 @@ document.addEventListener('DOMContentLoaded',()=>{ gMakeFilters('tbl_pfd',14,pfC
 '''
 
 
-def status_table_html(section_id, key_cols, rows, base_label, target_label):
-    head = "".join(f"<th>{esc(c)}</th>" for c in key_cols)
-    head += (f"<th>{esc(base_label)}</th><th>{esc(target_label)}</th>"
-             f'<th class="status">Status</th>')
-    body = []
-    for r in rows:
-        cells = "".join(f"<td>{esc(k)}</td>" for k in r["key"])
-        b = "-" if r["base"] is None else esc(r["base"])
-        t = "-" if r["target"] is None else esc(r["target"])
-        cls = CAT_CLASS[r["cat"]]
-        body.append(
-            f'<tr class="row-{cls}" data-cat="{r["cat"]}">{cells}'
-            f'<td>{b}</td><td>{t}</td>'
-            f'<td class="status"><span class="badge {cls}">{CATEGORY_LABEL[r["cat"]]}</span></td></tr>')
-    return _table_wrapper(section_id, head, body)
-
-
-def perf_table_html(section_id, key_cols, rows, base_label, target_label):
-    head = "".join(f"<th>{esc(c)}</th>" for c in key_cols)
-    head += (f'<th class="num">{esc(base_label)}</th><th class="num">{esc(target_label)}</th>'
-             f'<th class="num">Ratio (T/B)</th><th class="status">Status</th>')
-    body = []
-    for r in rows:
-        cells = "".join(f"<td>{esc(k)}</td>" for k in r["key"])
-        b = "-" if r["base"] is None else f'{r["base"]:.4f}' if isinstance(r["base"], float) else esc(r["base"])
-        t = "-" if r["target"] is None else f'{r["target"]:.4f}' if isinstance(r["target"], float) else esc(r["target"])
-        ratio = "-" if r["ratio"] is None else f'{r["ratio"]:.3f}'
-        cls = CAT_CLASS[r["cat"]]
-        body.append(
-            f'<tr class="row-{cls}" data-cat="{r["cat"]}">{cells}'
-            f'<td class="num">{b}</td><td class="num">{t}</td><td class="num">{ratio}</td>'
-            f'<td class="status"><span class="badge {cls}">{CATEGORY_LABEL[r["cat"]]}</span></td></tr>')
-    return _table_wrapper(section_id, head, body)
-
-
-def _table_wrapper(section_id, head, body):
-    return f'''
-    <div class="toolbar">
-      <input type="text" class="search" placeholder="Filter rows..." onkeyup="filterTable('{section_id}', this.value)">
-      <div class="chips">
-        <button class="chip active" data-f="all" onclick="chipFilter('{section_id}', this)">All<span class="cc"></span></button>
-        <button class="chip" data-f="regression" onclick="chipFilter('{section_id}', this)">Regressions<span class="cc"></span></button>
-        <button class="chip" data-f="improvement" onclick="chipFilter('{section_id}', this)">Improvements<span class="cc"></span></button>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table id="{section_id}" class="data">
-        <thead><tr>{head}</tr></thead>
-        <tbody>{''.join(body)}</tbody>
-      </table>
-    </div>'''
-
-
-ISS_TABLE_JS = r'''
-window.issInitTable = window.issInitTable || function(cfg){
-  let FILTER='all', SEARCH='', SC=-1, SD=1, COLF=[]; const NUM=[0];
-  const ROWS=cfg.rows;
-  const ST=['open','fixed','closed'], STC=['issue-open','issue-fixed','issue-closed'];
-  function esc(s){return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
-  function cellText(row){ return [row[0], ST[row[1]], row[2], row[3], row[4], row[5], row[6]]; }
-  function rowHtml(row){
-    const s=row[1];
-    const link=row[7]?('<a href="'+row[7]+'" target="_blank" rel="noopener">#'+esc(row[0])+'</a>'):('#'+esc(row[0]));
-    return '<tr><td class="status">'+link+'</td>'+
-      '<td class="status"><span class="ibadge '+STC[s]+'">'+ST[s]+'</span></td>'+
-      '<td>'+esc(row[2])+'</td><td class="status">'+esc(row[3])+'</td>'+
-      '<td>'+esc(row[4])+'</td><td>'+esc(row[5])+'</td><td>'+esc(row[6])+'</td></tr>';
-  }
-  function match(row){
-    if(FILTER!=='all' && ST[row[1]]!==FILTER) return false;
-    if(SEARCH && !cellText(row).join(' ').toLowerCase().includes(SEARCH)) return false;
-    if(gAnyF(COLF) && !gColMatch(cellText(row), COLF)) return false;
-    return true;
-  }
-  function render(){
-    const body=document.getElementById(cfg.bodyId); const cnt=[0,0,0];
-    for(const row of ROWS) cnt[row[1]]++;
-    let arr=[]; for(const row of ROWS) if(match(row)) arr.push(row);
-    arr=gSortRows(arr, cellText, SC, SD, NUM.indexOf(SC)>=0);
-    let h=''; for(const row of arr) h+=rowHtml(row);
-    body.innerHTML = h || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:22px">No matching issues</td></tr>';
-    document.getElementById(cfg.shownId).textContent=arr.length;
-    document.querySelectorAll(cfg.panelSel+' .cards .card[data-f]').forEach(card=>{
-      const f=card.getAttribute('data-f'), el=card.querySelector('.num');
-      if(!el) return;
-      el.textContent = f==='all'?(cnt[0]+cnt[1]+cnt[2]):(f==='open'?cnt[0]:(f==='fixed'?cnt[1]:cnt[2]));
-    });
-  }
-  function colF(i,v){ COLF[i]=v; render(); }
-  function sortBy(i){ if(SC===i){SD=-SD;}else{SC=i;SD=1;} gSortInd(cfg.tableId,SC,SD); render(); }
-  window['issSearch_'+cfg.ns]=function(v){ SEARCH=v.toLowerCase(); render(); };
-  window['issCardFilter_'+cfg.ns]=function(card){
-    FILTER=card.getAttribute('data-f');
-    card.closest('.cards').querySelectorAll('.card[data-f]').forEach(x=>x.classList.remove('sel'));
-    card.classList.add('sel'); render();
-  };
-  function init(){ gMakeFilters(cfg.tableId,7,colF); gMakeSort(cfg.tableId,sortBy); render(); }
-  if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
-};
-'''
-
-
-def issues_detail_html(items, section_id="issues", title=None, ns="tgt"):
-    import json
-    st_i = {"open": 0, "fixed": 1, "closed": 2}
-    data = [[it["num"], st_i.get(it["status"], 0), it["category"], it["opened"],
-             it["reporter"], ", ".join(it["labels"]), it["title"], it["url"]]
-            for it in items]
-    rows_var = "ISS_ROWS_" + ns.upper()
-    table_id = "tbl_" + section_id
-    body_id = section_id + "_body"
-    shown_id = section_id + "_shown"
-    if title is None:
-        title = f"Issues referencing {esc(TARGET_LABEL)}"
-    blob = ("const " + rows_var + "=" + json.dumps(data, separators=(",", ":")) + ";").replace("</", "<\\/")
-    table = f'''
-    <h3 class="subh">{title}
-      <span class="hint">(click a status card to filter · click headers to sort · search + per-column filters)</span></h3>
-    <div class="toolbar">
-      <input type="text" class="search" placeholder="Search issues…" oninput="issSearch_{ns}(this.value)">
-    </div>
-    <div class="table-wrap">
-      <table id="{table_id}" class="data">
-        <thead><tr><th>Issue</th><th class="status">Status</th><th>Category</th>
-          <th class="status">Opened</th><th>Reporter</th><th>Labels</th><th>Title</th></tr></thead>
-        <tbody id="{body_id}"></tbody>
-      </table>
-    </div>
-    <div class="pager">Showing <b id="{shown_id}">0</b> of {len(data)} issues</div>'''
-    init = (f"issInitTable({{rows:{rows_var}, tableId:'{table_id}', bodyId:'{body_id}',"
-            f" shownId:'{shown_id}', panelSel:'.panel#{section_id}', ns:'{ns}'}});")
-    return table + f'<script>{blob}\n{ISS_TABLE_JS}\n{init}</script>'
-
-
 def build_html(sections, meta):
     nav = "".join(
         f'<button class="tab{" active" if i == 0 else ""}" data-tab="{s["id"]}" onclick="showTab(\'{s["id"]}\', this)">{esc(s["title"])}'
@@ -2452,7 +1658,7 @@ def build_html(sections, meta):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(meta["target"])} vs {esc(meta["base"])} — BMG</title>
+<title>{esc(meta["component"])} acceptance · {esc(meta["target_version"])} vs {esc(meta["base_version"])}</title>
 <style>
 :root {{
   --bg:#0f172a; --panel:#111c33; --card:#16233f;
@@ -2617,8 +1823,8 @@ footer {{ text-align:center; color:var(--muted); font-size:12px; padding:24px; }
 </head>
 <body>
 <header class="top">
-  <h1>{esc(meta["target"])} <span style="color:var(--muted)">vs</span> {esc(meta["base"])} <span style="color:var(--accent)">· BMG</span></h1>
-  <div class="sub">Baseline <b>{esc(meta["base"])}</b> &nbsp;→&nbsp; Target <b>{esc(meta["target"])}</b>
+  <h1>{esc(meta["component"])} acceptance <span style="color:var(--accent)">· {esc(meta["target_version"])} vs {esc(meta["base_version"])}</span></h1>
+  <div class="sub">Component <b>{esc(meta["component"])}</b> &nbsp;·&nbsp; Baseline <b>{esc(meta["base_version"])}</b> &nbsp;→&nbsp; Target <b>{esc(meta["target_version"])}</b>
      &nbsp;·&nbsp; Generated {esc(meta["ts"])}</div>
 </header>
 {overview_html(meta.get("summary", []), meta.get("summary_caption", ""))}
@@ -2884,20 +2090,6 @@ class XlsxWriter:
                 z.writestr(f"xl/worksheets/sheet{i+1}.xml", self._sheet_xml(rows))
 
 
-def xlsx_status_rows(key_cols, rows, base_label, target_label):
-    H = XlsxWriter.S_HEADER
-    header = [(c, H) for c in key_cols] + [(base_label, H), (target_label, H), ("Status", H)]
-    out = [header]
-    for r in rows:
-        style = XlsxWriter.CAT_STYLE[r["cat"]]
-        cells = [(k, style) for k in r["key"]]
-        cells.append(("" if r["base"] is None else r["base"], style))
-        cells.append(("" if r["target"] is None else r["target"], style))
-        cells.append((CATEGORY_LABEL[r["cat"]], style))
-        out.append(cells)
-    return out
-
-
 def xlsx_ut_rows(key_cols, rows, base_label, target_label, issues, lookup, target_msg):
     H = XlsxWriter.S_HEADER
     header = ([(c, H) for c in key_cols]
@@ -3062,13 +2254,10 @@ def main():
     if not os.path.isdir(BASE_DIR) or not os.path.isdir(TARGET_DIR):
         sys.exit(f"Missing baseline/target dir under {HERE}")
 
-    print("Syncing issue cache (~/torch-xpu-ops.issues)...")
-    issue_cache = [] if os.environ.get("ACC_SKIP_ISSUES") else load_issue_cache()
-
     print("Parsing unit tests...")
     ut_base, _ut_base_msg = parse_ut(BASE_DIR)
     ut_target, ut_target_msg = parse_ut(TARGET_DIR)
-    ut_issues, ut_issue_lookup = build_ut_issues_from_cache(issue_cache)
+    ut_issues, ut_issue_lookup = [], {}
 
     print("Parsing accuracy...")
     acc_base = parse_accuracy(BASE_DIR, pt2e=False)
@@ -3114,11 +2303,11 @@ def main():
         print(f"  UT collection-failure: {len(_crashed)} crashed files, "
               f"{_ncase} member cases")
     # Timeout / hang: a case pytest-xdist reports as `failed on setup with
-    # "worker 'gwN' crashed while running ..."` is the root (hung > timeout) or
+    # "worker 'gwN' crashed while running ..."` is the root (hung / timed-out) or
     # collateral of a case that took down the xdist worker, not a code
-    # regression. Group these into a dedicated `timeout` category (tracked e.g.
-    # by #4947) so they are not counted as regressions. Runs after crash grouping
-    # so whole-file import crashes stay separate.
+    # regression. Group these into a dedicated `timeout` category so they are not
+    # counted as regressions. Runs after crash grouping so import crashes stay
+    # separate.
     _ntmo = 0
     for r in ut_rows:
         if r["cat"] == "crash":
@@ -3164,32 +2353,25 @@ def main():
 
     acc_bvm = acc_value_map(acc_base)
     acc_tvm = acc_value_map(acc_target)
-    acc_issues = build_error_issues_from_cache(issue_cache, ["Accuracy", "E2E"])
+    acc_issues, acc_issue_lookup = [], {}
     acc_target_msg = parse_acc_messages(TARGET_DIR, acc_tvm)
     acc_rows, acc_counts = compare_acc(acc_bvm, acc_tvm)
-    acc_issue_lookup = build_acc_issue_lookup(
-        acc_rows, acc_target_msg, acc_issues, {}, ("regression", "fail"))
     acc_base_sum = acc_status_summary(acc_bvm)
     acc_target_sum = acc_status_summary(acc_tvm)
 
-    # Performance crashes share the same runtime errors as accuracy failures, so
-    # match against performance-, Accuracy- and E2E-labeled issue signatures.
-    perf_issues = build_error_issues_from_cache(issue_cache, ["performance", "Accuracy", "E2E"])
+    perf_issues, perf_issue_lookup = [], {}
     perf_base_notrun = perf_notrun_status(BASE_DIR, perf_base)
     perf_target_notrun = perf_notrun_status(TARGET_DIR, perf_target)
     perf_target_msg = parse_perf_messages(TARGET_DIR, perf_target)
     perf_rows, perf_counts = compare_perf2(perf_base, perf_target)
-    perf_issue_lookup = build_acc_issue_lookup(
-        perf_rows, perf_target_msg, perf_issues, {},
-        lambda r: not _pos(r["ind_t"]))
-    attach_category_issue(perf_rows, perf_issue_lookup, perf_issues,
-                          TRACKING_ISSUE, TRACKING_PERF_DROP_CATS)
     perf_base_sum = perf_ver_summary(perf_base, perf_base_notrun)
     perf_target_sum = perf_ver_summary(perf_target, perf_target_notrun)
     perf_eag_gm, perf_ind_gm = perf_geomeans(perf_rows)
 
     ts = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M %Z")
-    meta = {"base": BASE_LABEL, "target": TARGET_LABEL, "ts": ts}
+    meta = {"base": BASE_LABEL, "target": TARGET_LABEL,
+            "component": COMPONENT, "target_version": TARGET_VERSION,
+            "base_version": BASE_VERSION, "ts": ts}
 
     ut_keys = ["Test File", "Test Class", "Test Name"]
     e2e_keys = ["Suite", "Dtype", "Mode", "Name", "Scenario"]
@@ -3201,12 +2383,7 @@ def main():
             "consistent pass/fail are in the cards above and the full XLSX.")
 
     # ---- summary cards: one per status category (they partition every row, so
-    # Total == their sum) plus the two target-failure roll-ups ----
-    fail_set = {"failure", "error"}
-    tf_issue = sum(1 for r in ut_rows if r["target"] in fail_set
-                   and _ut_key(r["key"][1], r["key"][2]) in ut_issue_lookup)
-    tf_noissue = sum(1 for r in ut_rows if r["target"] in fail_set
-                     and _ut_key(r["key"][1], r["key"][2]) not in ut_issue_lookup)
+    # Total == their sum) ----
     _ut_tone = {"regression": "reg", "improvement": "imp", "new": "new",
                 "removed": "rem", "crash": "crash", "timeout": "timeout", "not_run": "notrun",
                 "fail": "fail", "pass": "pass", "others": "other", "unknown": "other"}
@@ -3225,10 +2402,6 @@ def main():
         ]
 
     # accuracy cards mirror the accuracy filters (pass-based comparison)
-    acc_tf_issue = sum(1 for r in acc_rows if r["cat"] in ("regression", "fail")
-                       and r["key"] in acc_issue_lookup)
-    acc_tf_noissue = sum(1 for r in acc_rows if r["cat"] in ("regression", "fail")
-                         and r["key"] not in acc_issue_lookup)
     acc_cards = [
         ("Total", len(acc_rows), "total", "all"),
         ("Regressions", acc_counts.get("regression", 0), "reg", "regression"),
@@ -3238,8 +2411,6 @@ def main():
     ]
 
     # performance cards mirror the perf filters (eager/inductor)
-    perf_tf_issue = sum(1 for r in perf_rows if not _pos(r["ind_t"]) and r["key"] in perf_issue_lookup)
-    perf_tf_noissue = sum(1 for r in perf_rows if not _pos(r["ind_t"]) and r["key"] not in perf_issue_lookup)
     pc = perf_counts
     perf_cards = [
         ("Total", len(perf_rows), "total", "all"),
@@ -3313,7 +2484,8 @@ def main():
     meta["summary_caption"] = "Accuracy & Performance cover all tested models."
 
     html_out = build_html(sections, meta)
-    _slug = f"{TARGET_LABEL}_vs_{BASE_LABEL}_bmg_report".replace(" ", "_").replace("/", "-")
+    _slug = f"{COMPONENT}_{TARGET_VERSION}_vs_{BASE_VERSION}_report".replace(" ", "_").replace("/", "-")
+    os.makedirs(OUT_DIR, exist_ok=True)
     html_path = os.path.join(OUT_DIR, _slug + ".html")
     with open(html_path, "w") as fh:
         fh.write(html_out)
@@ -3344,7 +2516,7 @@ def main():
     gh_sum = os.environ.get("GITHUB_STEP_SUMMARY")
     if gh_sum:
         lines = ["## Acceptance report", "",
-                 f"**Target:** `{TARGET_LABEL}` &nbsp;&nbsp; **Baseline:** `{BASE_LABEL}`", "",
+                 f"**Component:** `{COMPONENT}` &nbsp;&nbsp; **Target:** `{TARGET_VERSION}` &nbsp;&nbsp; **Baseline:** `{BASE_VERSION}`", "",
                  "| Section | Regression | Improvement | New | Removed | Total |",
                  "| --- | --- | --- | --- | --- | --- |"]
         for s in sections:
