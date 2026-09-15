@@ -355,3 +355,65 @@ jobs:
             -f context="$CB_CONTEXT" \
             -f target_url="$RUN_URL" \
             -f description="${COMPONENT} acceptance (${PATTERN}): ${state}"
+
+  # ==================================================================
+  # Mirror every job of THIS run as a per-job commit status on the caller
+  # PR, synced live (poller). Makes the dispatched run's jobs show up in the
+  # caller's checks like native workflow jobs.
+  # ==================================================================
+  mirror-status:
+    name: mirror status
+    if: ${{ inputs.callback_repo != '' && inputs.callback_sha != '' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Mirror dispatched jobs as commit statuses
+        env:
+          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          CB_REPO: ${{ inputs.callback_repo }}
+          CB_SHA: ${{ inputs.callback_sha }}
+          RUN_ID: ${{ github.run_id }}
+          SELF_JOB: mirror status
+        run: |
+          declare -A last
+          map_state() { # status conclusion -> commit-status state
+            [ "$1" != "completed" ] && { echo pending; return; }
+            case "$2" in
+              success|skipped|neutral) echo success ;;
+              cancelled|timed_out|stale|action_required) echo error ;;
+              *) echo failure ;;
+            esac
+          }
+          stable=0
+          for _ in $(seq 1 240); do   # ~2h cap at 30s cadence
+            rows=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/jobs" \
+              --jq '.jobs[] | @base64' 2>/dev/null || true)
+            seen=0; pending_others=0
+            while IFS= read -r row; do
+              [ -n "$row" ] || continue
+              j=$(printf '%s' "$row" | base64 -d)
+              name=$(printf '%s' "$j" | jq -r '.name')
+              [ "$name" = "$SELF_JOB" ] && continue
+              seen=$((seen+1))
+              st=$(printf '%s' "$j" | jq -r '.status')
+              cc=$(printf '%s' "$j" | jq -r '.conclusion // ""')
+              url=$(printf '%s' "$j" | jq -r '.html_url')
+              [ "$st" = completed ] || pending_others=1
+              state=$(map_state "$st" "$cc")
+              ctx="torch-xpu-ops: ${name}"
+              if [ "${last[$ctx]:-}" != "$state" ]; then
+                gh api -X POST "repos/${CB_REPO}/statuses/${CB_SHA}" \
+                  -f state="$state" -f context="$ctx" -f target_url="$url" \
+                  -f description="job ${st}${cc:+ / }${cc}" >/dev/null 2>&1 || true
+                last[$ctx]="$state"
+              fi
+            done <<< "$rows"
+            # Exit once all non-self jobs are completed and stable across polls
+            # (guards against reusable jobs that appear late).
+            if [ "$seen" -gt 0 ] && [ "$pending_others" = 0 ]; then
+              stable=$((stable+1)); [ "$stable" -ge 2 ] && { echo "All jobs completed."; break; }
+            else
+              stable=0
+            fi
+            sleep 30
+          done
+
