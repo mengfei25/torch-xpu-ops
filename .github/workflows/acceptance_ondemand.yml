@@ -59,6 +59,15 @@ on:
         default: ''
         description: 'Caller id (e.g. onednn-pr-2) for concurrency grouping; a new run cancels the previous one with the same caller.'
 
+      callback_repo:
+        type: string
+        default: ''
+        description: 'owner/name to repository_dispatch the result back to (empty = no callback).'
+      callback_check_id:
+        type: string
+        default: ''
+        description: 'Check run id in callback_repo to finalize on completion.'
+
 permissions: read-all
 
 concurrency:
@@ -282,3 +291,39 @@ jobs:
             ${{ github.workspace }}/comparison/*.xlsx
           retention-days: 30
           if-no-files-found: warn
+
+  # ==================================================================
+  # Report result back to the caller (event-driven PR check callback)
+  # ==================================================================
+  report-back:
+    name: report back
+    needs: [target-ut, target-e2e, baseline-ut, baseline-e2e, compare-results]
+    if: ${{ always() && inputs.callback_repo != '' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch result to caller
+        env:
+          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          CB_REPO: ${{ inputs.callback_repo }}
+          CB_CHECK: ${{ inputs.callback_check_id }}
+          COMPONENT: ${{ inputs.test_component }}
+          PATTERN: ${{ inputs.test_pattern }}
+          TARGET: ${{ inputs.target_version }}
+          BASELINE: ${{ inputs.baseline_version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          R_TUT: ${{ needs.target-ut.result }}
+          R_TE2E: ${{ needs.target-e2e.result }}
+          R_BUT: ${{ needs.baseline-ut.result }}
+          R_BE2E: ${{ needs.baseline-e2e.result }}
+          R_CMP: ${{ needs.compare-results.result }}
+        run: |
+          concl=success
+          for r in "$R_TUT" "$R_TE2E" "$R_BUT" "$R_BE2E" "$R_CMP"; do
+            case "$r" in success|skipped) ;; *) concl=failure ;; esac
+          done
+          jq -nc \
+            --arg cid "$CB_CHECK" --arg c "$concl" --arg url "$RUN_URL" \
+            --arg comp "$COMPONENT" --arg pat "$PATTERN" \
+            --arg t "$TARGET" --arg b "$BASELINE" \
+            '{event_type:"acceptance-result", client_payload:{check_id:$cid, conclusion:$c, run_url:$url, component:$comp, pattern:$pat, target:$t, baseline:$b}}' \
+            | gh api -X POST "repos/${CB_REPO}/dispatches" --input -
