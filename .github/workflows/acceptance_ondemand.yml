@@ -62,11 +62,15 @@ on:
       callback_repo:
         type: string
         default: ''
-        description: 'owner/name to repository_dispatch the result back to (empty = no callback).'
-      callback_check_id:
+        description: 'owner/name to post the result commit status back to (empty = no callback).'
+      callback_sha:
         type: string
         default: ''
-        description: 'Check run id in callback_repo to finalize on completion.'
+        description: 'Commit SHA in callback_repo to attach the result status to.'
+      callback_context:
+        type: string
+        default: ''
+        description: 'Commit status context to set in callback_repo on completion.'
 
 permissions: read-all
 
@@ -91,7 +95,8 @@ jobs:
       - name: Write callback info
         env:
           CB_REPO: ${{ inputs.callback_repo }}
-          CB_CHECK: ${{ inputs.callback_check_id }}
+          CB_SHA: ${{ inputs.callback_sha }}
+          CB_CONTEXT: ${{ inputs.callback_context }}
           COMPONENT: ${{ inputs.test_component }}
           PATTERN: ${{ inputs.test_pattern }}
           TARGET: ${{ inputs.target_version }}
@@ -99,9 +104,9 @@ jobs:
         run: |
           mkdir -p cbinfo
           jq -nc \
-            --arg repo "$CB_REPO" --arg cid "$CB_CHECK" --arg comp "$COMPONENT" \
+            --arg repo "$CB_REPO" --arg sha "$CB_SHA" --arg ctx "$CB_CONTEXT" --arg comp "$COMPONENT" \
             --arg pat "$PATTERN" --arg t "$TARGET" --arg b "$BASELINE" \
-            '{callback_repo:$repo, check_id:$cid, component:$comp, pattern:$pat, target:$t, baseline:$b}' \
+            '{callback_repo:$repo, callback_sha:$sha, callback_context:$ctx, component:$comp, pattern:$pat, target:$t, baseline:$b}' \
             > cbinfo/callback.json
       - name: Upload callback info
         uses: actions/upload-artifact@v7
@@ -317,7 +322,7 @@ jobs:
           if-no-files-found: warn
 
   # ==================================================================
-  # Report result back to the caller (event-driven PR check callback)
+  # Report result back to the caller (event-driven commit-status callback)
   # ==================================================================
   report-back:
     name: report back
@@ -325,15 +330,14 @@ jobs:
     if: ${{ always() && inputs.callback_repo != '' }}
     runs-on: ubuntu-24.04
     steps:
-      - name: Dispatch result to caller
+      - name: Post result commit status to caller
         env:
           GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
           CB_REPO: ${{ inputs.callback_repo }}
-          CB_CHECK: ${{ inputs.callback_check_id }}
+          CB_SHA: ${{ inputs.callback_sha }}
+          CB_CONTEXT: ${{ inputs.callback_context }}
           COMPONENT: ${{ inputs.test_component }}
           PATTERN: ${{ inputs.test_pattern }}
-          TARGET: ${{ inputs.target_version }}
-          BASELINE: ${{ inputs.baseline_version }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           R_TUT: ${{ needs.target-ut.result }}
           R_TE2E: ${{ needs.target-e2e.result }}
@@ -341,13 +345,13 @@ jobs:
           R_BE2E: ${{ needs.baseline-e2e.result }}
           R_CMP: ${{ needs.compare-results.result }}
         run: |
-          concl=success
+          [ -n "$CB_SHA" ] && [ -n "$CB_CONTEXT" ] || { echo "No callback sha/context; skipping."; exit 0; }
+          state=success
           for r in "$R_TUT" "$R_TE2E" "$R_BUT" "$R_BE2E" "$R_CMP"; do
-            case "$r" in success|skipped) ;; *) concl=failure ;; esac
+            case "$r" in success|skipped) ;; *) state=failure ;; esac
           done
-          jq -nc \
-            --arg cid "$CB_CHECK" --arg c "$concl" --arg url "$RUN_URL" \
-            --arg comp "$COMPONENT" --arg pat "$PATTERN" \
-            --arg t "$TARGET" --arg b "$BASELINE" \
-            '{event_type:"acceptance-result", client_payload:{check_id:$cid, conclusion:$c, run_url:$url, component:$comp, pattern:$pat, target:$t, baseline:$b}}' \
-            | gh api -X POST "repos/${CB_REPO}/dispatches" --input -
+          gh api -X POST "repos/${CB_REPO}/statuses/${CB_SHA}" \
+            -f state="$state" \
+            -f context="$CB_CONTEXT" \
+            -f target_url="$RUN_URL" \
+            -f description="${COMPONENT} acceptance (${PATTERN}): ${state}"
