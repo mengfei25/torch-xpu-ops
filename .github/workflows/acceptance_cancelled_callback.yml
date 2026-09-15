@@ -41,6 +41,13 @@ jobs:
           comp=$(jq -r '.component // empty' callback.json)
           pat=$(jq -r '.pattern // empty' callback.json)
           [ -n "$repo" ] && [ -n "$sha" ] && [ -n "$ctx" ] || { echo "Incomplete callback info; nothing to do."; exit 0; }
+          # Only report if this run still owns the status; a newer run's run URL
+          # means we've been superseded (avoid clobbering the current run).
+          cur=$(gh api "repos/${repo}/commits/${sha}/statuses" \
+            --jq "[.[] | select(.context==\"${ctx}\")][0].target_url // \"\"" 2>/dev/null || echo "")
+          case "$cur" in
+            */actions/runs/*) [ "$cur" != "$RUN_URL" ] && { echo "Superseded by ${cur}; skip."; exit 0; } ;;
+          esac
           gh api -X POST "repos/${repo}/statuses/${sha}" \
             -f state="error" \
             -f context="$ctx" \

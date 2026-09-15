@@ -346,6 +346,13 @@ jobs:
           R_CMP: ${{ needs.compare-results.result }}
         run: |
           [ -n "$CB_SHA" ] && [ -n "$CB_CONTEXT" ] || { echo "No callback sha/context; skipping."; exit 0; }
+          # Only report if this run still owns the status; a newer run's run URL
+          # means we've been superseded (avoid clobbering the current run).
+          cur=$(gh api "repos/${CB_REPO}/commits/${CB_SHA}/statuses" \
+            --jq "[.[] | select(.context==\"${CB_CONTEXT}\")][0].target_url // \"\"" 2>/dev/null || echo "")
+          case "$cur" in
+            */actions/runs/*) [ "$cur" != "$RUN_URL" ] && { echo "Superseded by ${cur}; skip."; exit 0; } ;;
+          esac
           state=success
           for r in "$R_TUT" "$R_TE2E" "$R_BUT" "$R_BE2E" "$R_CMP"; do
             case "$r" in success|skipped) ;; *) state=failure ;; esac
