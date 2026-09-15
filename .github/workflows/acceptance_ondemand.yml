@@ -25,9 +25,9 @@ on:
       # ----- Test scope (command pattern) -----
       test_pattern:
         type: choice
-        options: [test_pt, test_pt_ut, test_pt_e2e]
+        options: [test_pt, test_pt_ut, test_pt_e2e, test_pt_smoke]
         default: test_pt
-        description: 'Command pattern: test_pt (UT+E2E), test_pt_ut (UT only), test_pt_e2e (E2E only).'
+        description: 'Command pattern: test_pt (UT+E2E), test_pt_ut (UT only), test_pt_e2e (E2E only), test_pt_smoke (smoke tests only).'
 
       # ----- Common base refs -----
       pytorch:
@@ -91,7 +91,7 @@ jobs:
       pytorch: ${{ inputs.pytorch }}
       torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
       python: ${{ inputs.python }}
-      ut: p0
+      ut: ${{ inputs.test_pattern == 'test_pt_smoke' && 'op_regression' || 'p0'}}
       category: target
       skip_summary: true
 
@@ -110,9 +110,10 @@ jobs:
       test_type: build-acceptance
       pytorch: ${{ inputs.pytorch }}
       python: ${{ inputs.python }}
-      suite: ${{ matrix.suite }}
+      suite: ${{ inputs.test_pattern == 'test_pt_smoke' && 'torchbench' || matrix.suite}}
       scenario: accuracy,performance
       category: target
+      model: ${{ inputs.test_pattern == 'test_pt_smoke' && 'hf_Bert,resnet50' || ''}}
 
   # ==================================================================
   # BASELINE pipeline
