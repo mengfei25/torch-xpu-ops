@@ -33,21 +33,26 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
+          THIS_RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           [ -f callback.json ] || { echo "No callback info artifact; nothing to do."; exit 0; }
           repo=$(jq -r '.callback_repo // empty' callback.json)
           sha=$(jq -r '.callback_sha // empty' callback.json)
           ctx=$(jq -r '.callback_context // empty' callback.json)
+          caller=$(jq -r '.caller // empty' callback.json)
           comp=$(jq -r '.component // empty' callback.json)
           pat=$(jq -r '.pattern // empty' callback.json)
           [ -n "$repo" ] && [ -n "$sha" ] && [ -n "$ctx" ] || { echo "Incomplete callback info; nothing to do."; exit 0; }
-          # Only report if this run still owns the status; a newer run's run URL
-          # means we've been superseded (avoid clobbering the current run).
-          cur=$(gh api "repos/${repo}/commits/${sha}/statuses" \
-            --jq "[.[] | select(.context==\"${ctx}\")][0].target_url // \"\"" 2>/dev/null || echo "")
-          case "$cur" in
-            */actions/runs/*) [ "$cur" != "$RUN_URL" ] && { echo "Superseded by ${cur}; skip."; exit 0; } ;;
-          esac
+          # Concurrency group (caller) is the unique key: if a newer run for this
+          # caller exists, it owns the status — a cancelled/superseded run skips.
+          if [ -n "$caller" ]; then
+            newest=$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow acceptance_ondemand.yml \
+              --json databaseId,displayTitle,createdAt \
+              --jq "[.[] | select((.displayTitle // \"\") | test(\"caller:${caller}$\"))] | sort_by(.createdAt) | last | .databaseId // empty" 2>/dev/null || echo "")
+            if [ -n "$newest" ] && [ "$newest" != "${THIS_RUN_ID}" ]; then
+              echo "Superseded: newest run for ${caller} is ${newest} (this ${THIS_RUN_ID}); skip."; exit 0
+            fi
+          fi
           gh api -X POST "repos/${repo}/statuses/${sha}" \
             -f state="error" \
             -f context="$ctx" \
