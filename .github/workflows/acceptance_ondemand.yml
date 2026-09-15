@@ -328,7 +328,7 @@ jobs:
   report-back:
     name: report back
     needs: [target-ut, target-e2e, baseline-ut, baseline-e2e, compare-results]
-    if: ${{ always() && inputs.callback_repo != '' }}
+    if: ${{ !cancelled() && inputs.callback_repo != '' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Post result commit status to caller
