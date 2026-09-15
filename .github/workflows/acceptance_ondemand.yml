@@ -96,7 +96,7 @@ jobs:
 
   target-ut:
     name: target / ut
-    if: ${{ inputs.test_pattern == 'test_pt' || inputs.test_pattern == 'test_pt_ut' }}
+    if: ${{ inputs.test_pattern == 'test_pt' || inputs.test_pattern == 'test_pt_ut' || inputs.test_pattern == 'test_pt_smoke' }}
     needs: target-build
     secrets: inherit
     permissions:
@@ -115,7 +115,7 @@ jobs:
 
   target-e2e:
     name: target / e2e
-    if: ${{ inputs.test_pattern == 'test_pt' || inputs.test_pattern == 'test_pt_e2e' }}
+    if: ${{ inputs.test_pattern == 'test_pt' || inputs.test_pattern == 'test_pt_e2e' || inputs.test_pattern == 'test_pt_smoke' }}
     needs: target-build
     secrets: inherit
     strategy:
@@ -151,7 +151,7 @@ jobs:
 
   baseline-ut:
     name: baseline / ut
-    if: ${{ inputs.test_pattern == 'test_pt' || inputs.test_pattern == 'test_pt_ut' }}
+    if: ${{ inputs.test_pattern == 'test_pt' || inputs.test_pattern == 'test_pt_ut' || inputs.test_pattern == 'test_pt_smoke' }}
     needs: baseline-build
     secrets: inherit
     permissions:
@@ -164,13 +164,13 @@ jobs:
       pytorch: ${{ inputs.pytorch }}
       torch_xpu_ops: ${{ inputs.torch_xpu_ops }}
       python: ${{ inputs.python }}
-      ut: p0
+      ut: ${{ inputs.test_pattern == 'test_pt_smoke' && 'op_regression' || 'p0'}}
       category: baseline
       skip_summary: true
 
   baseline-e2e:
     name: baseline / e2e
-    if: ${{ inputs.test_pattern == 'test_pt' || inputs.test_pattern == 'test_pt_e2e' }}
+    if: ${{ inputs.test_pattern == 'test_pt' || inputs.test_pattern == 'test_pt_e2e' || inputs.test_pattern == 'test_pt_smoke' }}
     needs: baseline-build
     secrets: inherit
     strategy:
@@ -183,9 +183,10 @@ jobs:
       test_type: build-acceptance
       pytorch: ${{ inputs.pytorch }}
       python: ${{ inputs.python }}
-      suite: ${{ matrix.suite }}
+      suite: ${{ inputs.test_pattern == 'test_pt_smoke' && 'torchbench' || matrix.suite}}
       scenario: accuracy,performance
       category: baseline
+      model: ${{ inputs.test_pattern == 'test_pt_smoke' && 'hf_Bert,resnet50' || ''}}
 
   # ==================================================================
   # Compare results
