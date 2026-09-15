@@ -58,6 +58,10 @@ on:
         type: string
         default: ''
         description: 'Caller id (e.g. onednn-pr-2) for concurrency grouping; a new run cancels the previous one with the same caller.'
+      caller_ref:
+        type: string
+        default: ''
+        description: 'Marker <owner>/<repo>#<pr>@<sha> surfaced in run-name so an external status bridge can map jobs back to the caller PR commit.'
 
 permissions: read-all
 
@@ -66,7 +70,7 @@ concurrency:
   cancel-in-progress: true
 
 run-name: >-
-  Acceptance / ${{ inputs.test_component }} [${{ inputs.test_pattern }}] ${{ inputs.target_version }} vs ${{ inputs.baseline_version }}
+  Acceptance / ${{ inputs.test_component }} [${{ inputs.test_pattern }}] ${{ inputs.target_version }} vs ${{ inputs.baseline_version }} ${{ inputs.caller_ref }}
 
 jobs:
   # ==================================================================
