@@ -158,7 +158,8 @@ run_group() {
             # First show topology (if needed)
             xpu-smi topology -m
             for test_file in "${!distributed_tests[@]}"; do
-                (cd "${distributed_tests[$test_file]}" && run_pytest "$test_file")
+                # Unset scoped to this subshell so other groups keep PYTEST_ADDOPTS.
+                (unset PYTEST_ADDOPTS; cd "${distributed_tests[$test_file]}" && run_pytest "$test_file")
             done
             ;;
         *)
