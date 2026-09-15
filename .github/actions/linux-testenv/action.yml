@@ -21,10 +21,6 @@ inputs:
     type: string
     default: ''
     description: 'Optional tag (e.g. target/baseline) used to select the matching wheel artifact'
-  model:
-    type: string
-    default: ''
-    description: 'Optional model names (e.g. hf_Bert,resnet50)'
 
 runs:
   using: composite
@@ -160,7 +156,7 @@ runs:
               python install.py $(echo $line |awk -F, '{printf $1}')
             done < ../pytorch/benchmarks/dynamo/torchbench_models_list.txt
           else
-            python install.py --continue_on_fail $(echo ${{ inputs.model }} |sed 's/,/ /g')
+            python install.py --continue_on_fail $(echo "${MODEL_ONLY_NAME}" |sed 's/,/ /g')
           fi
           echo "PYTHONPATH=${PWD}:${PYTHONPATH}" >> ${GITHUB_ENV}
           # for dlrm
