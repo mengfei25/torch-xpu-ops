@@ -82,6 +82,28 @@ run-name: >-
   Acceptance / ${{ inputs.test_component }} [${{ inputs.test_pattern }}] ${{ inputs.target_version }} vs ${{ inputs.baseline_version }} · caller:${{ inputs.caller }}
 
 jobs:
+  # Announce the run on the caller PR (pending); report-back finalizes it.
+  notify-start:
+    name: notify start
+    if: ${{ inputs.callback_repo != '' && inputs.callback_sha != '' && inputs.callback_context != '' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Post pending status to caller
+        env:
+          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          CB_REPO: ${{ inputs.callback_repo }}
+          CB_SHA: ${{ inputs.callback_sha }}
+          CB_CONTEXT: ${{ inputs.callback_context }}
+          COMPONENT: ${{ inputs.test_component }}
+          PATTERN: ${{ inputs.test_pattern }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api -X POST "repos/${CB_REPO}/statuses/${CB_SHA}" \
+            -f state=pending \
+            -f context="$CB_CONTEXT" \
+            -f target_url="$RUN_URL" \
+            -f description="${COMPONENT} acceptance (${PATTERN}): running"
+
   # ==================================================================
   # TARGET pipeline
   # ==================================================================
