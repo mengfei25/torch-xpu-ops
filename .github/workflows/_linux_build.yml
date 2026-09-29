@@ -51,6 +51,7 @@ jobs:
       image: 'pytorch/manylinux2_28-builder:xpu-main'
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
+        - /home/sdp/:/home/sdp/
       env:
         PATH: /tmp/xpu-tool/myvenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
@@ -69,6 +70,7 @@ jobs:
           gh --version
           # cleanup files
           rm -rf ${{ github.workspace }}/*.whl ${{ github.workspace }}/*.log
+          cp /home/sdp/.netrc ~/
       - name: Setup python-${{ inputs.python }}
         run: |
           rm -rf /tmp/xpu-tool/myvenv
