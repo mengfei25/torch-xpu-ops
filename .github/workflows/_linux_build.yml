@@ -77,11 +77,13 @@ jobs:
           rpm --import https://repositories.intel.com/gpu/intel-graphics.key
           dnf config-manager --add-repo  https://repositories.intel.com/gpu/rhel/${VERSION_ID}/intel-omix/0.4/unified/intel-gpu-${VERSION_ID}.repo
 
+          dnf clean all
+          dnf install -y intel-omix-devel
+
           rpm -Fvh --nodeps --replacefiles --replacepkgs /home/sdp/mengfeil/open-linux-driver-ci-dev_igc-23215/intel-*
           rpm -e --nodeps intel-igc-opencl-2.40.13-1296.el8_10.x86_64 intel-igc-core-2.40.13-1296.el8_10.x86_64 || true
 
-          dnf clean all
-          dnf install -y intel-omix-devel
+          rpm -qa |grep -iE 'intel-gpu-compute|libze|libigc|intel|ocloc' |sort
 
       - name: Setup python-${{ inputs.python }}
         run: |
