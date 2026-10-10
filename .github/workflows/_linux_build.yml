@@ -48,9 +48,10 @@ jobs:
     if: ${{ ! endsWith(inputs.pytorch, '_wheel') }}
     runs-on: ${{ inputs.runner }}
     container:
-      image: 'pytorch/manylinux2_28-builder:cpu-main'
+      image: 'pytorch/manylinux2_28-builder:cpu-v2.15.0-rc3'
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
+        - /home/sdp/mengfeil:/home/sdp/mengfeil
       env:
         PATH: /tmp/xpu-tool/myvenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
@@ -72,18 +73,15 @@ jobs:
           rm -rf ${{ github.workspace }}/*.whl ${{ github.workspace }}/*.log
 
           # install omix
-          export no_proxy="localhost,127.0.0.1,laurentides.igk.intel.com,$no_proxy"
-          export NO_PROXY="localhost,127.0.0.1,laurentides.igk.intel.com,$NO_PROXY"
-          echo "sslverify=False" | sudo tee -a /etc/dnf/dnf.conf
-          dnf config-manager --add-repo https://laurentides.igk.intel.com/repositories/rhel/8.10/intel-omix/12.0/unified/intel-gpu-8.10.repo
+          . /etc/os-release
+          rpm --import https://repositories.intel.com/gpu/intel-graphics.key
+          dnf config-manager --add-repo  https://repositories.intel.com/gpu/rhel/${VERSION_ID}/intel-omix/0.4/unified/intel-gpu-${VERSION_ID}.repo
+
+          rpm -Fvh --nodeps --replacefiles --replacepkgs /home/sdp/mengfeil/open-linux-driver-ci-dev_igc-23215/intel-*
+          rpm -e --nodeps intel-igc-opencl-2.40.13-1296.el8_10.x86_64 intel-igc-core-2.40.13-1296.el8_10.x86_64 || true
+
           dnf clean all
           dnf install -y intel-omix-devel
-
-          # install oneapi
-          rm -rf /opt/intel/oneapi intel-deep-learning-essentials-2026.1.3.17_offline.sh
-          wget -q https://registrationcenter-download.intel.com/akdlm/IRC_NAS/bedab612-cf6b-4ece-872e-e72e9534ccab/intel-deep-learning-essentials-2026.1.3.17_offline.sh
-          bash intel-deep-learning-essentials-2026.1.3.17_offline.sh -a -s --eula accept --install-dir=/opt/intel/oneapi --action install
-          bash intel-deep-learning-essentials-2026.1.3.17_offline.sh -a -s --eula accept --install-dir=/opt/intel/oneapi --action repair
 
       - name: Setup python-${{ inputs.python }}
         run: |
