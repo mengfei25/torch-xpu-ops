@@ -80,10 +80,10 @@ jobs:
           dnf clean all
           dnf install -y intel-omix-devel
 
-          rpm -Fvh --nodeps --replacefiles --replacepkgs /home/sdp/mengfeil/open-linux-driver-ci-dev_igc-23215/intel-*
-          rpm -e --nodeps intel-igc-opencl-2.40.13-1296.el8_10.x86_64 intel-igc-core-2.40.13-1296.el8_10.x86_64 || true
+          rpm -qa | grep -E '^(intel-cclang-static|intel-igc-cm|intel-igc-core|intel-igc-opencl|intel-igc-opencl-devel|intel-llvm-static)' | xargs -r rpm -e --nodeps
+          rpm -ivh --nodeps /home/sdp/mengfeil/open-linux-driver-ci-dev_igc-23215/*.rpm
 
-          rpm -qa |grep -iE 'intel-gpu-compute|libze|libigc|intel|ocloc' |sort
+          rpm -qa | grep -E '^(intel-cclang-static|intel-igc-cm|intel-igc-core|intel-igc-opencl|intel-igc-opencl-devel|intel-llvm-static)'
 
       - name: Setup python-${{ inputs.python }}
         run: |
