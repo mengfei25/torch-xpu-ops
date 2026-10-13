@@ -51,7 +51,7 @@ jobs:
       image: 'pytorch/manylinux2_28-builder:cpu-v2.15.0-rc3'
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
-        - /home/sdp/mengfeil:/home/sdp/mengfeil
+        - /home/test/mengfeil:/home/test/mengfeil
       env:
         PATH: /tmp/xpu-tool/myvenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
@@ -81,7 +81,7 @@ jobs:
           dnf install -y intel-omix-devel
 
           rpm -qa | grep -E '^(intel-cclang-static|intel-igc-cm|intel-igc-core|intel-igc-opencl|intel-igc-opencl-devel|intel-llvm-static)' | xargs -r rpm -e --nodeps
-          rpm -ivh --nodeps /home/sdp/mengfeil/open-linux-driver-ci-dev_igc-23215/*.rpm
+          rpm -ivh --nodeps /home/test/mengfeil/open-linux-driver-ci-rel_igc_2.40.x-17/*.rpm
 
           rpm -qa | grep -E '^(intel-cclang-static|intel-igc-cm|intel-igc-core|intel-igc-opencl|intel-igc-opencl-devel|intel-llvm-static)'
 
