@@ -55,6 +55,7 @@ jobs:
       env:
         PATH: /tmp/xpu-tool/myvenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         PIP_CACHE_DIR: /tmp/xpu-tool/.pipcache
+        no_proxy: laurentides.igk.intel.com
     env:
       GH_TOKEN: ${{ github.token }}
     timeout-minutes: 300
@@ -74,16 +75,12 @@ jobs:
 
           # install omix
           . /etc/os-release
+          echo 'sslverify=False' | sudo tee -a /etc/dnf/dnf.conf
           rpm --import https://repositories.intel.com/gpu/intel-graphics.key
-          dnf config-manager --add-repo  https://repositories.intel.com/gpu/rhel/${VERSION_ID}/intel-omix/0.4/unified/intel-gpu-${VERSION_ID}.repo
+          dnf config-manager --add-repo  https://laurentides.igk.intel.com/installing/internal/intel-omix/15.0/unified/rhel:8.10
 
           dnf clean all
           dnf install -y intel-omix-devel
-
-          rpm -qa | grep -E '^(intel-cclang-static|intel-igc-cm|intel-igc-core|intel-igc-opencl|intel-igc-opencl-devel|intel-llvm-static)' | xargs -r rpm -e --nodeps
-          rpm -ivh --nodeps /home/test/mengfeil/open-linux-driver-ci-rel_igc_2.40.x-17/*.rpm
-
-          rpm -qa | grep -E '^(intel-cclang-static|intel-igc-cm|intel-igc-core|intel-igc-opencl|intel-igc-opencl-devel|intel-llvm-static)'
 
       - name: Setup python-${{ inputs.python }}
         run: |
