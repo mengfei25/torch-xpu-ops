@@ -77,7 +77,7 @@ jobs:
           . /etc/os-release
           echo 'sslverify=False' | sudo tee -a /etc/dnf/dnf.conf
           rpm --import https://repositories.intel.com/gpu/intel-graphics.key
-          dnf config-manager --add-repo  https://laurentides.igk.intel.com/repositories/rhel/8.10/intel-omix/15.0/unified/intel-gpu-8.10.repo
+          dnf config-manager --add-repo  https://laurentides.igk.intel.com/repositories/rhel/8.10/intel-omix/16.0/unified/intel-gpu-8.10.repo
 
           dnf clean all
           dnf install -y intel-omix-devel
