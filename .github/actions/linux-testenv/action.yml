@@ -35,6 +35,19 @@ runs:
         dpkg -l |grep -E 'libigc-dev|libze-dev|level-zero-dev|intel-opencl-icd'
         rm -rf ~/.triton /tmp/*inductor* /tmp/tmp*
         rm -rf Torch-XPU-Wheel-*
+
+        # install omix
+        . /etc/os-release
+        echo 'sslverify=False' | sudo tee -a /etc/dnf/dnf.conf
+        rpm --import https://repositories.intel.com/gpu/intel-graphics.key
+        dnf config-manager --add-repo  https://laurentides.igk.intel.com/repositories/rhel/8.10/intel-omix/17.0/unified/intel-gpu-8.10.repo
+
+        dnf clean all
+        dnf install -y intel-omix-devel
+
+        echo "XPU_ONEAPI_PATH=/opt/intel/oneapi" >> "${GITHUB_ENV}"
+        printf '%s\n' "source ${GITHUB_WORKSPACE}/.github/scripts/env.sh > /dev/null 2>&1" > "${RUNNER_TEMP}/oneapi_env.sh"
+        echo "BASH_ENV=${RUNNER_TEMP}/oneapi_env.sh" >> "${GITHUB_ENV}"
     - name: Setup python-${{ inputs.python }}
       uses: ./.github/actions/setup-python
       with:

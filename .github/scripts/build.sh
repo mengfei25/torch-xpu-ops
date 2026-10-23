@@ -40,7 +40,7 @@ import sys; sys.path.insert(0, '.github/scripts')
 from generate_binary_build_matrix import PYTORCH_EXTRA_INSTALL_REQUIREMENTS
 print(PYTORCH_EXTRA_INSTALL_REQUIREMENTS['xpu'])
 ")
-        export PYTORCH_EXTRA_INSTALL_REQUIREMENTS="${REQS}"
+        # export PYTORCH_EXTRA_INSTALL_REQUIREMENTS="${REQS}"
     fi
 
     # Step 1: Environment setup (sources oneAPI, sets XPU build flags)

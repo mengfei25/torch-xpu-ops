@@ -77,7 +77,7 @@ jobs:
           . /etc/os-release
           echo 'sslverify=False' | sudo tee -a /etc/dnf/dnf.conf
           rpm --import https://repositories.intel.com/gpu/intel-graphics.key
-          dnf config-manager --add-repo  https://laurentides.igk.intel.com/repositories/rhel/8.10/intel-omix/16.0/unified/intel-gpu-8.10.repo
+          dnf config-manager --add-repo  https://laurentides.igk.intel.com/repositories/rhel/8.10/intel-omix/17.0/unified/intel-gpu-8.10.repo
 
           dnf clean all
           dnf install -y intel-omix-devel
@@ -155,6 +155,10 @@ jobs:
             --torch-xpu-ops-repo="${TORCH_XPU_OPS_REPO}" \
             --torch-xpu-ops-commit="${TORCH_XPU_OPS_COMMIT}" \
             --onednn-commit='${{ inputs.onednn }}'
+
+          echo "XPU_ONEAPI_PATH=/opt/intel/oneapi" >> "${GITHUB_ENV}"
+          printf '%s\n' "source ${GITHUB_WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh > /dev/null 2>&1" > "${RUNNER_TEMP}/oneapi_env.sh"
+          echo "BASH_ENV=${RUNNER_TEMP}/oneapi_env.sh" >> "${GITHUB_ENV}"
       - name: Build Pytorch
         run: |
           export USE_XCCL=1
