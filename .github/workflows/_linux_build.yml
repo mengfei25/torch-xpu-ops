@@ -157,7 +157,7 @@ jobs:
             --onednn-commit='${{ inputs.onednn }}'
 
           echo "XPU_ONEAPI_PATH=/opt/intel/oneapi" >> "${GITHUB_ENV}"
-          printf '%s\n' "source ${GITHUB_WORKSPACE}/torch-xpu-ops/.github/scripts/env.sh || true" > "${RUNNER_TEMP}/oneapi_env.sh"
+          printf '%s\n' "source /opt/intel/oneapi/setvars.sh || true" > "${RUNNER_TEMP}/oneapi_env.sh"
           echo "BASH_ENV=${RUNNER_TEMP}/oneapi_env.sh" >> "${GITHUB_ENV}"
       - name: Check oneAPI
         run: |
