@@ -534,6 +534,27 @@ def _build_fallback_row(
     return fallbacks[task.scenario]
 
 
+# Fixed accuracy layout: passing rows carry the stats columns, failed rows do not.
+_ACCURACY_COLUMNS = [
+    "dev", "backend", "suite", "dtype", "mode", "name", "scenario", "batch_size",
+    "elapsed", "accuracy",
+    "calls_captured", "unique_graphs", "fallbacks_to_eager", "graph_breaks",
+    "unique_graph_breaks", "autograd_captures", "autograd_compiles",
+    "cudagraph_skips", "compilation_latency",
+]
+
+
+def _align_accuracy_row(task: TestTask, header: list[str], row: list[str]) -> tuple[list[str], list[str]]:
+    """Map a row onto the fixed accuracy header; missing values become 0."""
+    defaults = {
+        "backend": "default", "suite": task.suite, "dtype": task.dt,
+        "mode": task.mode, "scenario": task.scenario,
+    }
+    names = header + _ACCURACY_COLUMNS[len(header):]
+    values = dict(zip(names, row))
+    return _ACCURACY_COLUMNS, [values.get(c, defaults.get(c, "0")) for c in _ACCURACY_COLUMNS]
+
+
 def collect_csv_results(
     log_csv: Path,
     tmp_log_csv: str,
@@ -546,9 +567,12 @@ def collect_csv_results(
     if not row:
         header, row = _build_fallback_row(device, task, kill_reason)
 
-    prefix = [task.scenario, task.suite, task.dt, task.mode]
-    final_header = ["scenario", "suite", "dtype", "mode"] + header
-    final_row = prefix + row
+    if task.scenario == "accuracy":
+        final_header, final_row = _align_accuracy_row(task, header, row)
+    else:
+        prefix = [task.scenario, task.suite, task.dt, task.mode]
+        final_header = ["scenario", "suite", "dtype", "mode"] + header
+        final_row = prefix + row
 
     with _csv_lock:
         write_header = not log_csv.exists()
