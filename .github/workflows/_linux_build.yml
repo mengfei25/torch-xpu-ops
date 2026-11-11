@@ -70,6 +70,12 @@ jobs:
           gh --version
           # cleanup files
           rm -rf ${{ github.workspace }}/*.whl ${{ github.workspace }}/*.log
+
+          rm -rf /opt/intel/oneapi intel-deep-learning-essentials-2026.2.0.640_offline.sh
+          wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/aef232d2-aac5-4cd6-bceb-911019bbb6a8/intel-deep-learning-essentials-2026.2.0.640_offline.sh
+          bash intel-deep-learning-essentials-2026.2.0.640_offline.sh -a -s --eula accept --intall-dir /opt/intel/oneapi --action remove || true
+          bash intel-deep-learning-essentials-2026.2.0.640_offline.sh -a -s --eula accept --intall-dir /opt/intel/oneapi --action install
+          bash intel-deep-learning-essentials-2026.2.0.640_offline.sh -a -s --eula accept --intall-dir /opt/intel/oneapi --action repair
       - name: Checkout torch-xpu-ops
         uses: actions/checkout@v7
         with:
